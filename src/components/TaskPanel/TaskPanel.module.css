@@ -1,0 +1,463 @@
+.panelOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+}
+
+.panel {
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-border);
+  gap: 12px;
+}
+
+.titleInput {
+  flex: 1;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text);
+  border: none;
+  background: transparent;
+  outline: none;
+}
+
+.titleInput::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.closeButton {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: var(--color-text-secondary);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.closeButton:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.panelContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.section {
+  margin-bottom: 20px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.textarea,
+.select,
+.dateInput {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--color-text);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.textarea:focus,
+.select:focus,
+.dateInput:focus {
+  border-color: var(--color-primary);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+}
+
+.range {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-border);
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.bucketBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.bucketColor {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.labelBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.assignees {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.assignee {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 4px;
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.assigneeAvatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+}
+
+.metaItem {
+  display: flex;
+  justify-content: space-between;
+}
+
+.metaLabel {
+  color: var(--color-text-secondary);
+}
+
+.metaValue {
+  color: var(--color-text-tertiary);
+}
+
+.panelFooter {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 24px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-background);
+}
+
+.deleteButton {
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--color-error);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+.deleteButton:hover {
+  background: var(--color-error);
+  color: white;
+}
+
+/* 任务类型选择 */
+.taskTypeOptions {
+  display: flex;
+  gap: 8px;
+}
+
+.taskTypeOption {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px;
+  background: var(--color-background);
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.taskTypeOption:hover {
+  border-color: var(--color-primary-light);
+  background: var(--color-surface-hover);
+}
+
+.taskTypeOption.isActive {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.taskTypeIcon {
+  font-size: 24px;
+}
+
+.taskTypeLabel {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.taskTypeOption.isActive .taskTypeLabel {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+/* 依赖关系 */
+.dependencyList {
+  margin-top: 8px;
+}
+
+.dependencyLabel {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+
+.dependencyItem {
+  padding: 6px 10px;
+  background: var(--color-background);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+
+/* ── 持续时间 ── */
+.durationRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.durationInput {
+  width: 64px;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  text-align: center;
+}
+
+.durationInput:focus {
+  outline: none;
+  border-color: var(--color-primary, #0078d4);
+  box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.15);
+}
+
+.durationUnit {
+  font-size: 13px;
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.durationHint {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+/* ── 截止日期约束 ── */
+.constraintDisplay {
+  background: #f0f7ff;
+  border: 1px solid #bdd8f5;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.constraintInfo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.constraintIcon {
+  font-size: 14px;
+  color: #d83b01;
+}
+
+.constraintText strong {
+  color: var(--color-primary, #0078d4);
+}
+
+.constraintActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.constraintSelect {
+  font-size: 12px;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: #fff;
+}
+
+.constraintWeekInput {
+  width: 48px;
+  font-size: 12px;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  text-align: center;
+}
+
+.constraintRemoveBtn {
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: #999;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.constraintRemoveBtn:hover {
+  background: #fee;
+  color: #e00;
+}
+
+.constraintSetup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.constraintSetupLabel {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.constraintGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.constraintGroupTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  padding: 2px 0;
+}
+
+.constraintRefBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: var(--color-surface);
+  font-size: 12px;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.constraintRefBtn:hover {
+  background: #f0f7ff;
+  border-color: var(--color-primary, #0078d4);
+}
+
+.constraintRefIcon {
+  color: #d83b01;
+  font-size: 12px;
+}
+
+.constraintRefDate {
+  margin-left: auto;
+  font-size: 11px;
+  color: #999;
+}

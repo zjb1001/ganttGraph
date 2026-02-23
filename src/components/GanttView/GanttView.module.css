@@ -1,0 +1,1184 @@
+/* ================================================================
+   GanttView — Single-scroll-container layout
+   ================================================================ */
+
+/* ── outer wrapper ── */
+.ganttView {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-surface);
+  position: relative;
+}
+
+/* ── single scroll container ── */
+.ganttScroll {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+/* ── content inner ── */
+.ganttInner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/* ================================================================
+   Sticky header row
+   ================================================================ */
+.stickyHeader {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-shrink: 0;
+  background: var(--color-surface);
+  border-bottom: 2px solid var(--color-border);
+}
+
+/* frozen top-left corner */
+.stickyCorner {
+  width: 360px;
+  flex-shrink: 0;
+  position: sticky;
+  left: 0;
+  z-index: 21;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  height: 44px;
+}
+
+.stickyTimelineHeader {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.timelineHeaderMonth {
+  display: flex;
+  height: 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.monthCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text);
+  border-right: 1px solid var(--color-border-light);
+  flex-shrink: 0;
+}
+
+.timelineHeaderWeek {
+  display: flex;
+  height: 20px;
+}
+
+.weekCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  border-right: 1px solid var(--color-border-light);
+  flex-shrink: 0;
+}
+
+.headerCell {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.headerCellNarrow {
+  width: 60px;
+  flex-shrink: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* ================================================================
+   Background grid (absolutely positioned behind data rows)
+   ================================================================ */
+.gridOverlay {
+  position: absolute;
+  top: 44px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.gridWeek {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-right: 1px solid var(--color-border-light);
+}
+
+.gridWeek:nth-child(even) {
+  background: rgba(0, 0, 0, 0.012);
+}
+
+.todayLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--color-primary, #2563eb) 0px,
+    var(--color-primary, #2563eb) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  opacity: 0.6;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.todayLabel {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--color-primary, #2563eb);
+  background: var(--color-surface, #fff);
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+/* ================================================================
+   Data rows
+   ================================================================ */
+.dataRow {
+  display: flex;
+  height: 36px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+/* frozen left cell */
+.frozenCell {
+  width: 360px;
+  flex-shrink: 0;
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border-light);
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* group header variant */
+.frozenGroupCell {
+  gap: 6px;
+  padding: 0 8px;
+  background: var(--color-background, #f5f5f5);
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.frozenGroupCell:hover {
+  background: var(--color-surface-hover) !important;
+}
+
+/* task row variant */
+.frozenTaskCell {
+  padding: 0 8px;
+}
+
+/* right cell: group row */
+.timelineGroupCell {
+  flex-shrink: 0;
+  height: 36px;
+  position: relative;
+  background: var(--color-background, #f5f5f5);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  z-index: 1;
+}
+
+/* right cell: task row */
+.timelineTaskCell {
+  flex-shrink: 0;
+  height: 36px;
+  position: relative;
+  border-bottom: 1px solid var(--color-border-light);
+  background: transparent;
+  z-index: 1;
+}
+
+/* right cell: milestone row */
+.timelineMilestoneCell {
+  flex-shrink: 0;
+  height: 36px;
+  position: relative;
+  border-bottom: 1px solid var(--color-border-light);
+  background: #fffbf8;
+  z-index: 1;
+}
+
+/* ================================================================
+   Group row contents
+   ================================================================ */
+
+/* 拖拽手柄 */
+.dragHandle {
+  cursor: grab;
+  color: #aaa;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  flex-shrink: 0;
+  user-select: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.dragHandle:active {
+  cursor: grabbing;
+}
+.frozenGroupCell:hover .dragHandle {
+  opacity: 1;
+}
+
+/* 分组行拖拽状态 */
+.groupDragging {
+  opacity: 0.4;
+}
+.groupDragOverAbove {
+  box-shadow: inset 0 3px 0 0 #0078d4;
+}
+.groupDragOverBelow {
+  box-shadow: inset 0 -3px 0 0 #0078d4;
+}
+
+.groupColor {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.groupName {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* editable group name */
+.groupNameEditable {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 2px;
+  border-bottom: 1px dashed transparent;
+  transition: all 0.15s ease;
+}
+
+.groupNameEditable:hover {
+  background: rgba(0, 0, 0, 0.05);
+  border-bottom-color: var(--color-text-secondary);
+}
+
+/* group name inline input */
+.groupNameInput {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border: 1.5px solid var(--color-primary);
+  border-radius: 2px;
+  outline: none;
+  background: #fff;
+}
+
+/* group action buttons (add task / delete group) */
+.groupActionBtn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-primary);
+  background: transparent;
+  color: var(--color-primary);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  padding: 0;
+  opacity: 0;
+}
+
+.frozenGroupCell:hover .groupActionBtn {
+  opacity: 1;
+}
+
+.groupActionBtn:hover {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.groupDeleteBtn {
+  border-color: var(--color-error, #d32f2f);
+  color: var(--color-error, #d32f2f);
+}
+
+.groupDeleteBtn:hover {
+  background: var(--color-error, #d32f2f);
+  color: #fff;
+}
+
+.groupCount {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  background: var(--color-border);
+  border-radius: 8px;
+  padding: 0 5px;
+  line-height: 16px;
+}
+
+.groupChevron {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  transition: transform 0.2s ease;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.groupChevronCollapsed {
+  transform: rotate(-90deg);
+}
+
+.timelineGroupLabel {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 2px 8px;
+  border-left: 3px solid;
+  margin-left: 8px;
+  opacity: 0.7;
+}
+
+.timelineGroupCollapsed {
+  font-weight: 400;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* ================================================================
+   Milestone dedicated section
+   ================================================================ */
+
+/* milestone group header row */
+.milestoneGroupRow {
+  border-bottom: 2px solid #d83b01;
+}
+
+.frozenMilestoneGroupCell {
+  background: #fef6f1 !important;
+  border-bottom: 2px solid #d83b01 !important;
+}
+
+.frozenMilestoneGroupCell:hover {
+  background: #fde8dd !important;
+}
+
+.milestoneGroupIcon {
+  font-size: 12px;
+  color: #d83b01;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* add milestone button on group row */
+.addMilestoneBtn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid #d83b01;
+  background: transparent;
+  color: #d83b01;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.addMilestoneBtn:hover {
+  background: #d83b01;
+  color: #fff;
+}
+
+/* add milestone inline row actions */
+.addMilestoneActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 100%;
+}
+
+.addMilestoneSave {
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border: none;
+  border-radius: 3px;
+  background: #d83b01;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.addMilestoneSave:hover {
+  background: #a62d00;
+}
+
+.addMilestoneCancel {
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.addMilestoneCancel:hover {
+  background: var(--color-background);
+}
+
+.timelineMilestoneGroupCell {
+  background: #fef6f1 !important;
+  border-bottom: 2px solid #d83b01 !important;
+  /* allow milestone markers to be positioned within */
+  position: relative;
+  overflow: visible;
+}
+
+/* collapsed milestone mini-marker on the group row */
+.collapsedMilestoneMarker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease;
+}
+
+.collapsedMilestoneMarker:hover {
+  transform: translate(-50%, -50%) scale(1.4);
+}
+
+.collapsedMilestoneMarker:hover .collapsedMilestoneLabel {
+  opacity: 1;
+}
+
+.collapsedMilestoneMarker svg {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+  flex-shrink: 0;
+}
+
+/* label text under collapsed milestone marker */
+.collapsedMilestoneLabel {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 1px;
+  font-size: 9px;
+  font-weight: 600;
+  color: #d83b01;
+  white-space: nowrap;
+  background: rgba(254, 246, 241, 0.95);
+  padding: 1px 4px;
+  border-radius: 2px;
+  border: 1px solid rgba(216, 59, 1, 0.2);
+  pointer-events: none;
+  line-height: 1.2;
+  z-index: 6;
+}
+
+/* milestone data row */
+.milestoneRow {
+  background: #fffbf8;
+}
+
+.frozenMilestoneCell {
+  background: #fffbf8 !important;
+}
+
+.milestoneDate {
+  width: 60px;
+  flex-shrink: 0;
+  font-size: 10px;
+  color: #d83b01;
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* clickable milestone date text */
+.milestoneDateText {
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 2px;
+  transition: background 0.15s ease;
+  border-bottom: 1px dashed #d83b01;
+}
+
+.milestoneDateText:hover {
+  background: #fde8dd;
+}
+
+/* milestone date inline input */
+.milestoneDateInput {
+  width: 100%;
+  max-width: 60px;
+  padding: 1px 2px;
+  font-size: 10px;
+  border: 1.5px solid #d83b01;
+  border-radius: 2px;
+  outline: none;
+  background: #fff;
+  color: #d83b01;
+  box-shadow: 0 2px 6px rgba(216, 59, 1, 0.15);
+}
+
+.milestoneDateInput::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+  width: 10px;
+  height: 10px;
+}
+
+/* milestone vertical reference line (dashed, behind content) */
+.milestoneRefLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  border-left: 1px dashed rgba(216, 59, 1, 0.2);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ================================================================
+   Task name cell contents
+   ================================================================ */
+.taskName {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.priorityIndicator {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.milestoneIndicator {
+  font-size: 10px;
+  color: #d83b01;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.milestoneNameText {
+  font-style: italic;
+  color: var(--color-text-secondary);
+}
+
+.taskNameText {
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 2px;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.taskNameText:hover {
+  background: var(--color-background);
+}
+
+/* task delete button (shown on hover) */
+.taskDeleteBtn {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--color-error, #d32f2f);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.taskRow:hover .taskDeleteBtn,
+.milestoneRow:hover .taskDeleteBtn {
+  opacity: 0.6;
+}
+
+.taskDeleteBtn:hover {
+  opacity: 1 !important;
+  background: rgba(211, 47, 47, 0.1);
+}
+
+/* task row hover */
+.taskRow:hover > .frozenCell {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+/* add task indicator */
+.addTaskIndicator {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+/* add task date inputs area */
+.addTaskDates {
+  width: 80px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  overflow: visible;
+}
+
+.addTaskDateInput {
+  width: 100%;
+  max-width: 110px;
+  padding: 2px 3px;
+  font-size: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  outline: none;
+  background: #fff;
+}
+
+.addTaskDateInput:focus {
+  border-color: var(--color-primary);
+}
+
+.taskNameInput {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  font-size: 12px;
+  border: 1px solid var(--color-primary);
+  border-radius: 2px;
+  outline: none;
+}
+
+.taskProgress {
+  width: 60px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.progressBarSmall {
+  flex: 1;
+  height: 3px;
+  background: var(--color-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progressBarFill {
+  height: 100%;
+  background: var(--color-primary);
+  transition: width 0.3s ease;
+}
+
+.progressText {
+  font-size: 9px;
+  color: var(--color-text-secondary);
+  min-width: 22px;
+  text-align: right;
+}
+
+/* ================================================================
+   Task bar
+   ================================================================ */
+.taskBar {
+  position: absolute;
+  top: 8px;
+  height: 20px;
+  border-radius: 3px;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  overflow: hidden;
+}
+
+.taskBar:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.taskBar.isDragging {
+  opacity: 0.7;
+  box-shadow: 0 0 0 2px var(--color-primary);
+}
+
+.taskBarProgress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  border-radius: 3px 0 0 3px;
+  transition: width 0.3s ease;
+}
+
+.taskBarLabel {
+  position: absolute;
+  left: 6px;
+  right: 30px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.taskBarDuration {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.15);
+  padding: 0 3px;
+  border-radius: 3px;
+  line-height: 14px;
+}
+
+.taskBarConstraint {
+  position: absolute;
+  right: -2px;
+  top: -10px;
+  font-size: 8px;
+  color: #0078d4;
+  background: #e8f4fd;
+  border: 1px solid #b3d7f0;
+  padding: 0 3px;
+  border-radius: 3px;
+  line-height: 13px;
+  white-space: nowrap;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* ================================================================
+   Milestone
+   ================================================================ */
+.milestone {
+  position: absolute;
+  top: 11px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  display: flex;
+  align-items: center;
+  transform: translateX(-50%);
+}
+
+.milestone:hover {
+  transform: translateX(-50%) scale(1.15);
+}
+
+.milestone.isDragging {
+  opacity: 0.7;
+}
+
+.milestoneIcon {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+  flex-shrink: 0;
+}
+
+.milestoneLabel {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--color-text);
+  white-space: nowrap;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 2px 5px;
+  border-radius: 3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  border-left: 2px solid #d83b01;
+}
+
+.milestoneInlineInput {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text);
+  background: #fff;
+  border: 1.5px solid #d83b01;
+  border-radius: 3px;
+  padding: 2px 6px;
+  outline: none;
+  min-width: 80px;
+  max-width: 160px;
+  box-shadow: 0 2px 8px rgba(211, 59, 1, 0.15);
+  z-index: 20;
+}
+
+/* ================================================================
+   Dependency SVG overlay
+   ================================================================ */
+.dependencySvg {
+  position: absolute;
+  left: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* 依赖连线组 — 允许鼠标交互 */
+.depLineGroup {
+  pointer-events: auto;
+}
+.depLineGroup:hover .depLinePath {
+  stroke-width: 3 !important;
+  filter: brightness(1.3);
+}
+.depLineGroup:hover circle {
+  r: 5;
+}
+
+/* ================================================================
+   Zoom toolbar (top-right)
+   ================================================================ */
+.zoomToolbar {
+  position: absolute;
+  top: 52px;
+  right: 12px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  padding: 3px 4px;
+}
+
+.zoomBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.zoomBtn:hover:not(:disabled) {
+  background: var(--color-surface-hover, #f0f0f0);
+  color: var(--color-text);
+}
+
+.zoomBtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.zoomFitBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--color-primary, #0078d4);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.zoomFitBtn:hover {
+  background: rgba(0, 120, 212, 0.08);
+}
+
+.zoomLevel {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  padding: 0 4px;
+  min-width: 36px;
+  text-align: center;
+  user-select: none;
+}
+
+.zoomSeparator {
+  width: 1px;
+  height: 16px;
+  background: var(--color-border);
+  margin: 0 2px;
+}
+
+/* Export buttons */
+.exportBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--color-primary, #0078d4);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.exportBtn:hover {
+  background: rgba(0, 120, 212, 0.08);
+  color: var(--color-primary, #005a9e);
+}
+
+.exportBtn:active {
+  background: rgba(0, 120, 212, 0.15);
+}
+
+/* ================================================================
+   Collapsible action panel (bottom-right)
+   ================================================================ */
+.actionPanel {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  min-width: 150px;
+  transition: min-width 0.2s ease;
+}
+
+.actionPanelCollapsed {
+  min-width: auto;
+}
+
+/* toggle header */
+.actionPanelToggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+
+.actionPanelToggle:hover {
+  background: var(--color-background, #f5f5f5);
+}
+
+.actionPanelArrow {
+  font-size: 10px;
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+
+.actionPanelArrowCollapsed {
+  transform: rotate(-90deg);
+}
+
+.actionPanelTitle {
+  letter-spacing: 0.3px;
+}
+
+/* body (shown when expanded) */
+.actionPanelBody {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 8px 8px;
+  border-top: 1px solid var(--color-border-light, #eee);
+}
+
+/* add group floating button */
+.addGroupFloatBtn {
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1.5px solid var(--color-primary);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.addGroupFloatBtn:hover {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+}
+
+.hintKey {
+  font-weight: 600;
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+/* ── 里程碑颜色选择器 ── */
+.milestoneColorPicker {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  background: none;
+  flex-shrink: 0;
+}
+
+.milestoneColorPicker::-webkit-color-swatch-wrapper {
+  padding: 1px;
+}
+
+.milestoneColorPicker::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
+.milestoneGroupInputRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
