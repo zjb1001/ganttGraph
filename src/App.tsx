@@ -21,8 +21,7 @@ function App() {
     loadUsers,
     loadLabels,
     loadTasks,
-    projects,
-    setCurrentProjectId
+    projects
   } = useAppStore()
 
   // 初始化数据加载

@@ -3,7 +3,7 @@ import { STATUS_COLORS } from '@/utils/colors'
 import styles from './BoardView.module.css'
 
 export default function BoardView() {
-  const { tasks, currentProjectId, buckets, setSelectedTaskId } = useAppStore()
+  const { tasks, currentProjectId, setSelectedTaskId } = useAppStore()
 
   const projectTasks = tasks.filter((t) => t.projectId === currentProjectId)
 

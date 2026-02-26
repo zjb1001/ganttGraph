@@ -94,9 +94,7 @@ export async function exportAsPDF(
       windowWidth: width,
       windowHeight: height,
       scrollX: 0,
-      scrollY: 0,
-      // 改进文字渲染
-      letterRendering: true
+      scrollY: 0
     })
 
     const imgData = canvas.toDataURL('image/png', 1.0) // 使用最高质量的 PNG
@@ -126,9 +124,6 @@ export async function exportAsPDF(
         if (i > 0) {
           pdf.addPage()
         }
-
-        // 计算当前页的高度
-        const currentHeight = Math.min(heightLeft, pageHeightMm)
 
         // 添加图片（使用压缩以提高性能）
         pdf.addImage(
