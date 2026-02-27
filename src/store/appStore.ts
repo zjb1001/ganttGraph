@@ -102,11 +102,8 @@ export const useAppStore = create<AppStore>()(
         loadProjects: async () => {
           const projects = await db.getAllProjects()
           set({ projects })
-          // 如果有项目但当前没有选择项目，自动选择第一个项目
-          const state = get()
-          if (projects.length > 0 && !state.currentProjectId) {
-            set({ currentProjectId: projects[0].id })
-          }
+          // 注意：不再自动选择第一个项目
+          // 让用户在 Dashboard 中手动选择，persist 会记住上次选择
         },
 
         loadTasks: async (projectId) => {

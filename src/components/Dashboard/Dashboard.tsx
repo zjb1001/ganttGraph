@@ -1,10 +1,26 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAppStore } from '@/store/appStore'
+import { Task } from '@/types'
+import { db } from '@/db'
 import { formatDateTime } from '@/utils/date'
 import styles from './Dashboard.module.css'
 
 export default function Dashboard() {
-  const { projects, tasks, buckets, addProject, updateProject, deleteProject, setCurrentProjectId } = useAppStore()
+  const { projects, buckets, addProject, updateProject, deleteProject, setCurrentProjectId, loadProjects, loadBuckets } = useAppStore()
+
+  // 直接从 IndexedDB 加载所有任务，确保 Dashboard 显示所有项目的准确统计
+  const [allTasks, setAllTasks] = useState<Task[]>([])
+
+  useEffect(() => {
+    const loadAllData = async () => {
+      const tasks = await db.tasks.toArray()
+      setAllTasks(tasks)
+      // 同时刷新项目和分组数据
+      await loadProjects()
+      await loadBuckets()
+    }
+    loadAllData()
+  }, [loadProjects, loadBuckets])
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
@@ -64,16 +80,23 @@ export default function Dashboard() {
     }
   }
 
+  // 从 DB 刷新所有任务数据
+  const refreshAllTasks = async () => {
+    const tasks = await db.tasks.toArray()
+    setAllTasks(tasks)
+  }
+
   const handleDelete = async (e: React.MouseEvent, projectId: string, projectName: string) => {
     e.stopPropagation()
     if (confirm(`确定要删除项目"${projectName}"吗？此操作不可恢复。`)) {
       await deleteProject(projectId)
+      await refreshAllTasks()
     }
   }
 
-  // 统计每个项目的任务数
+  // 统计每个项目的任务数（使用从 DB 直接加载的所有任务）
   const getProjectStats = (projectId: string) => {
-    const projectTasks = tasks.filter((t) => t.projectId === projectId)
+    const projectTasks = allTasks.filter((t) => t.projectId === projectId)
     const projectBuckets = buckets.filter((b) => 
       projectTasks.some((t) => t.bucketId === b.id)
     )

@@ -41,38 +41,53 @@ if (!fs.existsSync(distDir)) {
   process.exit(1)
 }
 
-const server = http.createServer((req, res) => {
-  const urlPath = decodeURIComponent((req.url || '/').split('?')[0])
-  const safePath = path.normalize(urlPath).replace(/^([.][.][/\\])+/, '')
-  let filePath = path.join(distDir, safePath === '/' ? 'index.html' : safePath)
+// 使用固定端口，确保 IndexedDB origin 不变（浏览器按 host+port 隔离数据）
+// 如果首选端口被占用，自动向上尝试
+const PREFERRED_PORT = 7890
+const MAX_PORT = 7910
 
-  fs.stat(filePath, (err, stat) => {
-    if (!err && stat.isDirectory()) {
-      filePath = path.join(filePath, 'index.html')
-    }
+function startServer(port) {
+  const srv = http.createServer((req, res) => {
+    const urlPath = decodeURIComponent((req.url || '/').split('?')[0])
+    const safePath = path.normalize(urlPath).replace(/^([.][.][/\\])+/, '')
+    let filePath = path.join(distDir, safePath === '/' ? 'index.html' : safePath)
 
-    fs.access(filePath, fs.constants.F_OK, (accessErr) => {
-      if (!accessErr) {
-        sendFile(res, filePath)
-        return
+    fs.stat(filePath, (err, stat) => {
+      if (!err && stat.isDirectory()) {
+        filePath = path.join(filePath, 'index.html')
       }
 
-      sendFile(res, path.join(distDir, 'index.html'))
+      fs.access(filePath, fs.constants.F_OK, (accessErr) => {
+        if (!accessErr) {
+          sendFile(res, filePath)
+          return
+        }
+
+        sendFile(res, path.join(distDir, 'index.html'))
+      })
     })
   })
-})
 
-server.listen(0, '127.0.0.1', () => {
-  const address = server.address()
-  const port = typeof address === 'object' && address ? address.port : 4173
-  const url = `http://127.0.0.1:${port}`
+  srv.on('error', (err) => {
+    if (err.code === 'EADDRINUSE' && port < MAX_PORT) {
+      console.log(`端口 ${port} 被占用，尝试 ${port + 1}...`)
+      startServer(port + 1)
+    } else {
+      console.error(`端口 ${PREFERRED_PORT}~${MAX_PORT} 均被占用，请手动释放端口后重试。`)
+      process.exit(1)
+    }
+  })
 
-  console.log(`Gantt Graph 已启动: ${url}`)
-  console.log('关闭窗口或按 Ctrl+C 退出')
+  srv.listen(port, '127.0.0.1', () => {
+    const url = `http://127.0.0.1:${port}`
+    console.log(`Gantt Graph 已启动: ${url}`)
+    console.log('关闭窗口或按 Ctrl+C 退出')
+    exec(`start "" "${url}"`, { shell: true })
+  })
 
-  exec(`start "" "${url}"`, { shell: true })
-})
+  process.on('SIGINT', () => {
+    srv.close(() => process.exit(0))
+  })
+}
 
-process.on('SIGINT', () => {
-  server.close(() => process.exit(0))
-})
+startServer(PREFERRED_PORT)
