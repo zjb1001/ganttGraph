@@ -310,15 +310,6 @@ export default function GanttView() {
     return { left: getDateLeft(new Date(task.startDateTime)) }
   }, [getDateLeft])
 
-  // 计算任务条宽度
-  const getTaskWidth = useCallback((task: typeof projectTasks[0]) => {
-    if (task.taskType === 'milestone') return 0
-    const taskStart = new Date(task.startDateTime)
-    const taskEnd   = new Date(task.dueDateTime)
-    const durationDays = getDaysBetween(taskStart, taskEnd)
-    return Math.max(durationDays * weekWidth, weekWidth)
-  }, [weekWidth])
-
   // 处理任务名称编辑
   const handleTaskNameClick = (e: React.MouseEvent, task: typeof projectTasks[0]) => {
     e.stopPropagation()
