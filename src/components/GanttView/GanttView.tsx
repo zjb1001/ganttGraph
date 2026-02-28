@@ -53,6 +53,10 @@ export default function GanttView() {
   const [hintsCollapsed, setHintsCollapsed] = useState(true)
   // 折叠的分组
   const [collapsedBuckets, setCollapsedBuckets] = useState<Set<string>>(new Set())
+  // 时间轴起止日期
+  const _defaultYear = new Date().getFullYear()
+  const [timelineStart, setTimelineStart] = useState(`${_defaultYear}-01-01`)
+  const [timelineEnd, setTimelineEnd] = useState(`${_defaultYear}-12-31`)
   // 分组拖拽排序
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null)
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null)
@@ -194,11 +198,23 @@ export default function GanttView() {
     [rowItems]
   )
 
-  // 时间轴固定铺满当前年份（1月1日 ~ 12月31日）
+  // 时间轴根据输入起止日期生成
   const { startDate, dateInfo, weekInfo, monthInfo } = useMemo(() => {
-    const now = new Date()
-    const startDate = new Date(now.getFullYear(), 0, 1)   // Jan 1
-    const endDate   = new Date(now.getFullYear(), 11, 31) // Dec 31
+    const parseLocalDate = (str: string) => {
+      const parts = str.split('-').map(Number)
+      if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+        return new Date(parts[0], parts[1] - 1, parts[2])
+      }
+      const now = new Date()
+      return new Date(now.getFullYear(), 0, 1)
+    }
+    const startDate = parseLocalDate(timelineStart)
+    let endDate = parseLocalDate(timelineEnd)
+    // 确保结束日期不早于开始日期（最少显示 7 天）
+    if (endDate <= startDate) {
+      endDate = new Date(startDate)
+      endDate.setDate(endDate.getDate() + 6)
+    }
 
     // 生成日期信息
     const dateInfo: DateInfo[] = []
@@ -277,7 +293,7 @@ export default function GanttView() {
     })
 
     return { startDate, endDate, dateInfo, weekInfo, monthInfo }
-  }, []) // 固定当前年，不需要依赖
+  }, [timelineStart, timelineEnd])
 
   const ZOOM_LEVELS = [1, 2, 3, 4, 5, 7, 10, 14]
   const [zoomIndex, setZoomIndex] = useState(4) // 默认 5px/天
@@ -286,6 +302,59 @@ export default function GanttView() {
 
   const handleZoomIn = () => setZoomIndex((i) => Math.min(i + 1, ZOOM_LEVELS.length - 1))
   const handleZoomOut = () => setZoomIndex((i) => Math.max(i - 1, 0))
+
+  // 自动从任务中计算时间轴范围（上下各留 7 天 padding）
+  const handleAutoFitTimeline = () => {
+    const allDates = projectTasks.flatMap((t) => [new Date(t.startDateTime), new Date(t.dueDateTime)])
+    if (allDates.length === 0) return
+    const minTime = Math.min(...allDates.map((d) => d.getTime()))
+    const maxTime = Math.max(...allDates.map((d) => d.getTime()))
+    const minDate = new Date(minTime)
+    const maxDate = new Date(maxTime)
+    minDate.setDate(minDate.getDate() - 7)
+    maxDate.setDate(maxDate.getDate() + 7)
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    setTimelineStart(fmt(minDate))
+    setTimelineEnd(fmt(maxDate))
+  }
+  // 悬浮工具栏拖拽
+  const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number }>(() => ({
+    x: window.innerWidth - 660,
+    y: 12,
+  }))
+  const toolbarDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
+
+  const handleToolbarMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // 点击按钮/输入框/label 时不触发拖拽
+    if ((e.target as HTMLElement).closest('button, input, label, select, span')) return
+    e.preventDefault()
+    toolbarDragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: toolbarPos.x,
+      origY: toolbarPos.y,
+    }
+  }
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!toolbarDragRef.current) return
+      const dx = e.clientX - toolbarDragRef.current.startX
+      const dy = e.clientY - toolbarDragRef.current.startY
+      setToolbarPos({
+        x: Math.max(0, toolbarDragRef.current.origX + dx),
+        y: Math.max(0, toolbarDragRef.current.origY + dy),
+      })
+    }
+    const onUp = () => { toolbarDragRef.current = null }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [])
+
   const handleZoomFit = () => {
     // 根据容器宽度自动计算最佳缩放
     const container = document.querySelector(`.${styles.ganttScroll}`)
@@ -1600,8 +1669,43 @@ export default function GanttView() {
         </div>
       </div>
 
-      {/* 缩放控制栏 */}
-      <div className={styles.zoomToolbar}>
+      {/* 缩放控制栏（可拖拽悬浮） */}
+      <div
+        className={styles.zoomToolbar}
+        style={{ left: toolbarPos.x, top: toolbarPos.y }}
+        onMouseDown={handleToolbarMouseDown}
+      >
+        {/* 拖拽手柄 */}
+        <div className={styles.toolbarDragHandle} title="拖拽移动工具栏">
+          <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor">
+            <circle cx="2" cy="2" r="1.2"/><circle cx="8" cy="2" r="1.2"/>
+            <circle cx="2" cy="7" r="1.2"/><circle cx="8" cy="7" r="1.2"/>
+            <circle cx="2" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/>
+          </svg>
+        </div>
+        <div className={styles.zoomSeparator}></div>
+        {/* 时间轴范围选择 */}
+        <label className={styles.dateRangeLabel}>起始</label>
+        <input
+          type="date"
+          className={styles.dateRangeInput}
+          value={timelineStart}
+          onChange={(e) => setTimelineStart(e.target.value)}
+          title="时间轴起始日期"
+        />
+        <label className={styles.dateRangeLabel}>结束</label>
+        <input
+          type="date"
+          className={styles.dateRangeInput}
+          value={timelineEnd}
+          onChange={(e) => setTimelineEnd(e.target.value)}
+          title="时间轴结束日期"
+        />
+        <button className={styles.autoFitBtn} onClick={handleAutoFitTimeline} title="从任务自动适配时间范围">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 21l-4.35-4.35"/><circle cx="11" cy="11" r="8"/><path d="M11 8v6M8 11h6"/></svg>
+          自适应
+        </button>
+        <div className={styles.zoomSeparator}></div>
         <button className={styles.zoomBtn} onClick={handleCollapseAll} title="全部折叠">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M20 6l-3 3-3-3" fill="currentColor" stroke="none"/></svg>
         </button>
