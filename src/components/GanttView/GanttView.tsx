@@ -20,6 +20,7 @@ interface DateInfo {
 export default function GanttView() {
   const { tasks, buckets, currentProjectId, setSelectedTaskId, addDependency, removeDependency, updateTask, addTask, deleteTask, addBucket, updateBucket, deleteBucket, projects } = useAppStore()
   const ganttRef = useRef<HTMLDivElement>(null)
+  const ganttScrollRef = useRef<HTMLDivElement>(null)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const [dragStartTask, setDragStartTask] = useState<string | null>(null)
@@ -56,6 +57,17 @@ export default function GanttView() {
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null)
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null)
   const [dragOverPosition, setDragOverPosition] = useState<'above' | 'below'>('below')
+
+  // 任务条拖拽调整时长
+  const resizingRef = useRef<{
+    taskId: string
+    handle: 'left' | 'right'
+    startX: number
+    origStart: Date
+    origEnd: Date
+  } | null>(null)
+  const resizePreviewRef = useRef<{ taskId: string; start: Date; end: Date } | null>(null)
+  const [resizePreview, setResizePreview] = useState<{ taskId: string; start: Date; end: Date } | null>(null)
 
   const projectTasks = tasks.filter((t) => t.projectId === currentProjectId)
 
@@ -707,6 +719,67 @@ export default function GanttView() {
     setDragOverGroupId(null)
   }
 
+  // ── 任务条拖拽调整时长 ──
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent, task: Task, handle: 'left' | 'right') => {
+    e.stopPropagation()
+    e.preventDefault()
+    resizingRef.current = {
+      taskId: task.id,
+      handle,
+      startX: e.clientX,
+      origStart: new Date(task.startDateTime),
+      origEnd: new Date(task.dueDateTime),
+    }
+    const preview = { taskId: task.id, start: new Date(task.startDateTime), end: new Date(task.dueDateTime) }
+    resizePreviewRef.current = preview
+    setResizePreview(preview)
+  }, [])
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!resizingRef.current) return
+      const { taskId, handle, startX, origStart, origEnd } = resizingRef.current
+      const deltaX = e.clientX - startX
+      const deltaDays = Math.round(deltaX / weekWidth)
+      let newStart = origStart
+      let newEnd = origEnd
+      if (handle === 'right') {
+        newEnd = new Date(origEnd)
+        newEnd.setDate(newEnd.getDate() + deltaDays)
+        const minEnd = new Date(origStart)
+        minEnd.setDate(minEnd.getDate() + 1)
+        if (newEnd < minEnd) newEnd = minEnd
+      } else {
+        newStart = new Date(origStart)
+        newStart.setDate(newStart.getDate() + deltaDays)
+        const maxStart = new Date(origEnd)
+        maxStart.setDate(maxStart.getDate() - 1)
+        if (newStart > maxStart) newStart = maxStart
+      }
+      const preview = { taskId, start: newStart, end: newEnd }
+      resizePreviewRef.current = preview
+      setResizePreview({ ...preview })
+    }
+
+    const handleMouseUp = async () => {
+      if (!resizingRef.current) return
+      const preview = resizePreviewRef.current
+      resizingRef.current = null
+      resizePreviewRef.current = null
+      setResizePreview(null)
+      if (preview) {
+        await updateTask(preview.taskId, { startDateTime: preview.start, dueDateTime: preview.end })
+      }
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [weekWidth, updateTask])
+
   // ── 删除任务 ──
   const handleDeleteTask = async (e: React.MouseEvent, taskId: string) => {
     e.stopPropagation()
@@ -774,24 +847,24 @@ export default function GanttView() {
 
   // 导出处理函数
   const handleExportAsPNG = async () => {
-    if (!ganttRef.current) return
-    await exportAsImage(ganttRef.current, `${sanitizedProjectName}_甘特图`, 'png')
+    if (!ganttScrollRef.current) return
+    await exportAsImage(ganttScrollRef.current, `${sanitizedProjectName}_甘特图`, 'png', TASK_LIST_WIDTH)
   }
 
   const handleExportAsJPEG = async () => {
-    if (!ganttRef.current) return
-    await exportAsImage(ganttRef.current, `${sanitizedProjectName}_甘特图`, 'jpeg')
+    if (!ganttScrollRef.current) return
+    await exportAsImage(ganttScrollRef.current, `${sanitizedProjectName}_甘特图`, 'jpeg', TASK_LIST_WIDTH)
   }
 
   const handleExportAsPDF = async () => {
-    if (!ganttRef.current) return
-    await exportAsPDF(ganttRef.current, `${sanitizedProjectName}_甘特图`, 'landscape')
+    if (!ganttScrollRef.current) return
+    await exportAsPDF(ganttScrollRef.current, `${sanitizedProjectName}_甘特图`, TASK_LIST_WIDTH)
   }
 
   return (
-    <div className={styles.ganttView} ref={ganttRef}>
+    <div className={`${styles.ganttView} ${resizePreview ? styles.ganttResizing : ''}`} ref={ganttRef}>
       {/* ── 单一滚动容器：同时承载左侧冻结列和右侧时间轴 ── */}
-      <div className={styles.ganttScroll}>
+      <div className={styles.ganttScroll} ref={ganttScrollRef}>
         <div className={styles.ganttInner} style={{ width: `${TASK_LIST_WIDTH + totalWidth}px` }}>
 
           {/* ── 吸顶表头行 ── */}
@@ -1156,9 +1229,13 @@ export default function GanttView() {
                     >
                       ⠿
                     </span>
-                    <span
-                      className={styles.groupColor}
-                      style={{ backgroundColor: row.bucket.color || '#a19f9d' }}
+                    <input
+                      type="color"
+                      className={styles.milestoneColorPicker}
+                      value={row.bucket.color || '#a19f9d'}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => updateBucket(row.bucket.id, { color: e.target.value })}
+                      title="修改分组颜色"
                     />
                     {editingGroupId === row.bucket.id ? (
                       <input
@@ -1282,98 +1359,113 @@ export default function GanttView() {
             }
 
             /* ── 普通任务行 ── */
-            return (
-              <div
-                key={row.task.id}
-                className={`${styles.dataRow} ${styles.taskRow} ${dragStartTask === row.task.id ? styles.isDragging : ''}`}
-              >
-                <div className={`${styles.frozenCell} ${styles.frozenTaskCell}`}>
-                  <div className={styles.taskName}>
-                    <span
-                      className={styles.priorityIndicator}
-                      style={{ backgroundColor: PRIORITY_COLORS[row.task.priority] }}
-                    />
-                    {editingTaskId === row.task.id ? (
-                      <input
-                        type="text"
-                        className={styles.taskNameInput}
-                        value={editingTitle}
-                        onChange={(e) => setEditingTitle(e.target.value)}
-                        onBlur={handleTaskNameSave}
-                        onKeyDown={handleTaskNameKeyDown}
-                        onClick={(e) => e.stopPropagation()}
-                        autoFocus
-                      />
-                    ) : (
+            {
+              const isPreviewing = resizePreview?.taskId === row.task.id
+              const dispStart = isPreviewing ? resizePreview!.start : new Date(row.task.startDateTime)
+              const dispEnd   = isPreviewing ? resizePreview!.end   : new Date(row.task.dueDateTime)
+              const barLeft  = getDateLeft(dispStart)
+              const barWidth = Math.max(getDaysBetween(dispStart, dispEnd) * weekWidth, weekWidth)
+              const days  = getDaysBetween(dispStart, dispEnd)
+              const weeks = days / 7
+              return (
+                <div
+                  key={row.task.id}
+                  className={`${styles.dataRow} ${styles.taskRow} ${dragStartTask === row.task.id ? styles.isDragging : ''}`}
+                >
+                  <div className={`${styles.frozenCell} ${styles.frozenTaskCell}`}>
+                    <div className={styles.taskName}>
                       <span
-                        className={styles.taskNameText}
-                        onClick={(e) => handleTaskNameClick(e, row.task)}
-                      >
-                        {row.task.title}
-                      </span>
-                    )}
-                    <button
-                      className={styles.taskDeleteBtn}
-                      onClick={(e) => handleDeleteTask(e, row.task.id)}
-                      title="删除任务"
-                    >×</button>
+                        className={styles.priorityIndicator}
+                        style={{ backgroundColor: PRIORITY_COLORS[row.task.priority] }}
+                      />
+                      {editingTaskId === row.task.id ? (
+                        <input
+                          type="text"
+                          className={styles.taskNameInput}
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          onBlur={handleTaskNameSave}
+                          onKeyDown={handleTaskNameKeyDown}
+                          onClick={(e) => e.stopPropagation()}
+                          autoFocus
+                        />
+                      ) : (
+                        <span
+                          className={styles.taskNameText}
+                          onClick={(e) => handleTaskNameClick(e, row.task)}
+                        >
+                          {row.task.title}
+                        </span>
+                      )}
+                      <button
+                        className={styles.taskDeleteBtn}
+                        onClick={(e) => handleDeleteTask(e, row.task.id)}
+                        title="删除任务"
+                      >×</button>
+                    </div>
+                    <div className={styles.taskProgress}>
+                      <div className={styles.progressBarSmall}>
+                        <div
+                          className={styles.progressBarFill}
+                          style={{ width: `${row.task.completedPercent || 0}%` }}
+                        />
+                      </div>
+                      <span className={styles.progressText}>{row.task.completedPercent || 0}%</span>
+                    </div>
                   </div>
-                  <div className={styles.taskProgress}>
-                    <div className={styles.progressBarSmall}>
+
+                  <div className={styles.timelineTaskCell} style={{ width: `${totalWidth}px` }}>
+                    <div
+                      className={`${styles.taskBar} ${dragStartTask === row.task.id ? styles.isDragging : ''} ${isPreviewing ? styles.taskBarResizing : ''}`}
+                      style={{
+                        left: `${barLeft}px`,
+                        width: `${barWidth}px`,
+                        backgroundColor: PRIORITY_COLORS[row.task.priority]
+                      }}
+                      onClick={(e) => handleTaskClick(e, row.task)}
+                      onDoubleClick={() => handleTaskDoubleClick(row.task)}
+                      title={`${row.task.title}\n${dispStart.toLocaleDateString('zh-CN')} - ${dispEnd.toLocaleDateString('zh-CN')}`}
+                    >
+                      {(row.task.completedPercent || 0) > 0 && (
+                        <div
+                          className={styles.taskBarProgress}
+                          style={{
+                            width: `${row.task.completedPercent}%`,
+                            backgroundColor: STATUS_COLORS[row.task.status]
+                          }}
+                        />
+                      )}
+                      {/* 左侧拖拽调整手柄 */}
                       <div
-                        className={styles.progressBarFill}
-                        style={{ width: `${row.task.completedPercent || 0}%` }}
+                        className={styles.taskBarResizeLeft}
+                        onMouseDown={(e) => handleResizeMouseDown(e, row.task, 'left')}
+                        title="拖拽调整开始日期"
+                      />
+                      <span className={styles.taskBarLabel}>{row.task.title}</span>
+                      {row.task.deadlineConstraint && (() => {
+                        const refTask = tasks.find((t) => t.id === row.task.deadlineConstraint!.refTaskId)
+                        if (!refTask) return null
+                        const c = row.task.deadlineConstraint!
+                        return (
+                          <span className={styles.taskBarConstraint} title={`${c.type === 'before' ? '在' : '在'}${refTask.title}${c.type === 'before' ? '之前' : '之后'}${c.offsetWeeks}周`}>
+                            🔗{c.offsetWeeks}w
+                          </span>
+                        )
+                      })()}
+                      <span className={styles.taskBarDuration}>
+                        {weeks >= 1 ? `${weeks.toFixed(1).replace(/\.0$/, '')}w` : `${days}d`}
+                      </span>
+                      {/* 右侧拖拽调整手柄 */}
+                      <div
+                        className={styles.taskBarResizeRight}
+                        onMouseDown={(e) => handleResizeMouseDown(e, row.task, 'right')}
+                        title="拖拽调整结束日期"
                       />
                     </div>
-                    <span className={styles.progressText}>{row.task.completedPercent || 0}%</span>
                   </div>
                 </div>
-
-                <div className={styles.timelineTaskCell} style={{ width: `${totalWidth}px` }}>
-                  <div
-                    className={`${styles.taskBar} ${dragStartTask === row.task.id ? styles.isDragging : ''}`}
-                    style={{
-                      left: `${getTaskPosition(row.task).left}px`,
-                      width: `${getTaskWidth(row.task)}px`,
-                      backgroundColor: PRIORITY_COLORS[row.task.priority]
-                    }}
-                    onClick={(e) => handleTaskClick(e, row.task)}
-                    onDoubleClick={() => handleTaskDoubleClick(row.task)}
-                    title={`${row.task.title}\n${new Date(row.task.startDateTime).toLocaleDateString('zh-CN')} - ${new Date(row.task.dueDateTime).toLocaleDateString('zh-CN')}`}
-                  >
-                    {(row.task.completedPercent || 0) > 0 && (
-                      <div
-                        className={styles.taskBarProgress}
-                        style={{
-                          width: `${row.task.completedPercent}%`,
-                          backgroundColor: STATUS_COLORS[row.task.status]
-                        }}
-                      />
-                    )}
-                    <span className={styles.taskBarLabel}>{row.task.title}</span>
-                    {row.task.deadlineConstraint && (() => {
-                      const refTask = tasks.find((t) => t.id === row.task.deadlineConstraint!.refTaskId)
-                      if (!refTask) return null
-                      const c = row.task.deadlineConstraint!
-                      return (
-                        <span className={styles.taskBarConstraint} title={`${c.type === 'before' ? '在' : '在'}${refTask.title}${c.type === 'before' ? '之前' : '之后'}${c.offsetWeeks}周`}>
-                          🔗{c.offsetWeeks}w
-                        </span>
-                      )
-                    })()}
-                    {(() => {
-                      const days = getDaysBetween(new Date(row.task.startDateTime), new Date(row.task.dueDateTime))
-                      const weeks = days / 7
-                      return (
-                        <span className={styles.taskBarDuration}>
-                          {weeks >= 1 ? `${weeks.toFixed(1).replace(/\.0$/, '')}w` : `${days}d`}
-                        </span>
-                      )
-                    })()}
-                  </div>
-                </div>
-              </div>
-            )
+              )
+            }
           })}
 
           {/* ── 依赖连线 SVG（绝对定位，覆盖数据行区域）── */}

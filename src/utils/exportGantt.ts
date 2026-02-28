@@ -3,35 +3,65 @@ import jsPDF from 'jspdf'
 
 /**
  * 导出甘特图为图片
- * @param element - 要导出的 DOM 元素
- * @param filename - 导出的文件名（不带扩展名）
- * @param format - 图片格式 'png' | 'jpeg'
+ * @param element   - 要导出的 DOM 元素（滚动容器）
+ * @param filename  - 导出的文件名（不带扩展名）
+ * @param format    - 图片格式
+ * @param frozenWidth - 左侧冻结列宽度（px），用于拼接导出内容
  */
 export async function exportAsImage(
   element: HTMLElement,
   filename: string = 'gantt-chart',
-  format: 'png' | 'jpeg' = 'png'
+  format: 'png' | 'jpeg' = 'png',
+  frozenWidth: number = 0
 ): Promise<void> {
   try {
-    // 显示加载提示
     showLoadingToast('正在生成图片...')
 
-    // 使用 html2canvas 捕获元素，使用更高的 scale 提高清晰度
-    const canvas = await html2canvas(element, {
+    const scale       = 3
+    const scrollLeft  = element.scrollLeft
+    const scrollTop   = element.scrollTop
+    const clientW     = element.clientWidth
+    const clientH     = element.clientHeight
+    const timelineVisW = clientW - frozenWidth
+
+    // 截取全宽内容（x=0）且高度限制在当前可视区域
+    const fullCanvas = await html2canvas(element, {
       backgroundColor: '#ffffff',
-      scale: 3, // 提高到 3 倍分辨率
+      scale,
       logging: false,
       useCORS: true,
       allowTaint: true,
-      // 改进渲染质量
-      windowWidth: element.scrollWidth,
+      x: 0,
+      y: scrollTop,
+      width: element.scrollWidth,
+      height: clientH,
+      windowWidth:  element.scrollWidth,
       windowHeight: element.scrollHeight,
       scrollX: 0,
       scrollY: 0
     })
 
-    // 转换为图片并下载
-    canvas.toBlob((blob) => {
+    // 手动合成：冻结列 + 当前可视时间轴区域
+    const outCanvas = document.createElement('canvas')
+    outCanvas.width  = clientW * scale
+    outCanvas.height = clientH * scale
+    const ctx = outCanvas.getContext('2d')!
+
+    // 左侧冻结列（始终在 x=0）
+    ctx.drawImage(
+      fullCanvas,
+      0, 0, frozenWidth * scale, clientH * scale,
+      0, 0, frozenWidth * scale, clientH * scale
+    )
+
+    // 当前可视时间轴：canvas 中时间轴起始位置 = frozenWidth + scrollLeft
+    ctx.drawImage(
+      fullCanvas,
+      (frozenWidth + scrollLeft) * scale, 0, timelineVisW * scale, clientH * scale,
+      frozenWidth * scale,                0, timelineVisW * scale, clientH * scale
+    )
+
+    outCanvas.toBlob((blob) => {
       if (blob) {
         const url = URL.createObjectURL(blob)
         const link = document.createElement('a')
@@ -54,115 +84,75 @@ export async function exportAsImage(
 }
 
 /**
- * 导出甘特图为 PDF（高清晰度版本）
- * @param element - 要导出的 DOM 元素
- * @param filename - 导出的文件名（不带扩展名）
- * @param orientation - 页面方向 'portrait' | 'landscape'
+ * 导出甘特图为 PDF（自定义页面尺寸，匹配屏幕当前可视内容）
+ * @param element     - 要导出的 DOM 元素（滚动容器）
+ * @param filename    - 导出的文件名（不带扩展名）
+ * @param frozenWidth - 左侧冻结列宽度（px）
  */
 export async function exportAsPDF(
   element: HTMLElement,
   filename: string = 'gantt-chart',
-  orientation: 'portrait' | 'landscape' = 'landscape'
+  frozenWidth: number = 0
 ): Promise<void> {
   try {
-    // 显示加载提示
-    showLoadingToast('正在生成高清 PDF...')
+    showLoadingToast('正在生成 PDF...')
 
-    // 获取元素的完整尺寸
-    const width = element.scrollWidth
-    const height = element.scrollHeight
+    const scale        = 2
+    const scrollLeft   = element.scrollLeft
+    const scrollTop    = element.scrollTop
+    const clientW      = element.clientWidth
+    const clientH      = element.clientHeight
+    const timelineVisW = clientW - frozenWidth
+    const pxToMm       = 0.264583 // 96 dpi: 1px = 0.264583mm
 
-    // 计算最佳缩放比例，确保 PDF 有足够的 DPI（300 DPI）
-    // A4 纸横向尺寸：297mm × 210mm
-    // 300 DPI = 11.81 px/mm
-    const mmToPxAt300DPI = 11.81
-    const a4WidthMm = orientation === 'landscape' ? 297 : 210
-    const a4HeightMm = orientation === 'landscape' ? 210 : 297
-
-    // 计算需要的缩放比例
-    const targetWidthPx = a4WidthMm * mmToPxAt300DPI
-    const scale = Math.max(3, Math.ceil(targetWidthPx / width))
-
-    // 使用高 scale 捕获元素，确保清晰度
-    const canvas = await html2canvas(element, {
+    // 截取全宽内容（x=0）且高度限制在当前可视区域
+    const fullCanvas = await html2canvas(element, {
       backgroundColor: '#ffffff',
-      scale: scale, // 使用计算出的高缩放比例
+      scale,
       logging: false,
       useCORS: true,
       allowTaint: true,
-      // 确保捕获完整内容
-      windowWidth: width,
-      windowHeight: height,
+      x: 0,
+      y: scrollTop,
+      width: element.scrollWidth,
+      height: clientH,
+      windowWidth:  element.scrollWidth,
+      windowHeight: element.scrollHeight,
       scrollX: 0,
       scrollY: 0
     })
 
-    const imgData = canvas.toDataURL('image/png', 1.0) // 使用最高质量的 PNG
+    // 手动合成：冻结列 + 当前可视时间轴区域
+    const outCanvas = document.createElement('canvas')
+    outCanvas.width  = clientW * scale
+    outCanvas.height = clientH * scale
+    const ctx = outCanvas.getContext('2d')!
 
-    // 计算图片尺寸（毫米）
-    const imgWidthMm = (canvas.width / mmToPxAt300DPI)
-    const imgHeightMm = (canvas.height / mmToPxAt300DPI)
+    ctx.drawImage(
+      fullCanvas,
+      0, 0, frozenWidth * scale, clientH * scale,
+      0, 0, frozenWidth * scale, clientH * scale
+    )
+    ctx.drawImage(
+      fullCanvas,
+      (frozenWidth + scrollLeft) * scale, 0, timelineVisW * scale, clientH * scale,
+      frozenWidth * scale,                0, timelineVisW * scale, clientH * scale
+    )
 
-    // 创建 PDF，使用 A4 格式
+    const imgData      = outCanvas.toDataURL('image/png', 1.0)
+    const pageWidthMm  = clientW * pxToMm
+    const pageHeightMm = clientH * pxToMm
+    const orientation: 'landscape' | 'portrait' = pageWidthMm >= pageHeightMm ? 'landscape' : 'portrait'
+
     const pdf = new jsPDF({
       orientation,
       unit: 'mm',
-      format: 'a4',
-      compress: false // 禁用压缩以保持质量
+      format: [pageWidthMm, pageHeightMm],
+      compress: false
     })
 
-    // 如果内容超过一页，需要分页
-    const pageHeightMm = a4HeightMm
-    const pagesNeeded = Math.ceil(imgHeightMm / pageHeightMm)
-
-    if (pagesNeeded > 1) {
-      // 多页处理
-      let heightLeft = imgHeightMm
-      let position = 0
-
-      for (let i = 0; i < pagesNeeded; i++) {
-        if (i > 0) {
-          pdf.addPage()
-        }
-
-        // 添加图片（使用压缩以提高性能）
-        pdf.addImage(
-          imgData,
-          'PNG',
-          0,
-          position,
-          imgWidthMm,
-          imgHeightMm,
-          undefined,
-          'FAST'
-        )
-
-        heightLeft -= pageHeightMm
-        position = -(imgHeightMm - heightLeft)
-      }
-    } else {
-      // 单页，直接添加
-      pdf.addImage(
-        imgData,
-        'PNG',
-        0,
-        0,
-        imgWidthMm,
-        imgHeightMm,
-        undefined,
-        'FAST'
-      )
-    }
-
-    // 设置 PDF 元数据
-    pdf.setProperties({
-      title: filename,
-      subject: '甘特图',
-      creator: 'Gantt Graph',
-      keywords: '甘特图,项目,任务'
-    })
-
-    // 下载 PDF
+    pdf.addImage(imgData, 'PNG', 0, 0, pageWidthMm, pageHeightMm, undefined, 'FAST')
+    pdf.setProperties({ title: filename, subject: '甘特图', creator: 'Gantt Graph', keywords: '甘特图,项目,任务' })
     pdf.save(`${filename}.pdf`)
 
     hideLoadingToast()
