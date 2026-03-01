@@ -1488,7 +1488,7 @@ export default function GanttView() {
                       style={{
                         left: `${barLeft}px`,
                         width: `${barWidth}px`,
-                        backgroundColor: PRIORITY_COLORS[row.task.priority]
+                        backgroundColor: row.task.color || '#0078d4'
                       }}
                       onClick={(e) => handleTaskClick(e, row.task)}
                       onDoubleClick={() => handleTaskDoubleClick(row.task)}

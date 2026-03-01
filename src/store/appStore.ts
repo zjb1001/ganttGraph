@@ -170,9 +170,18 @@ export const useAppStore = create<AppStore>()(
         // 任务操作
         // ============================================
         addTask: async (taskData) => {
+          // 如果没有指定颜色，则继承分组颜色
+          let taskColor = taskData.color
+          if (!taskColor) {
+            const state = get()
+            const bucket = state.buckets.find(b => b.id === taskData.bucketId)
+            taskColor = bucket?.color || '#0078d4' // 使用分组颜色，如果没有则默认蓝色
+          }
+          
           const task: Task = {
             ...taskData,
             id: crypto.randomUUID(),
+            color: taskColor,
             createdAt: new Date(),
             updatedAt: new Date()
           }

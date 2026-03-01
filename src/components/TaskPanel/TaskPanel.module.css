@@ -289,6 +289,33 @@
   font-weight: 500;
 }
 
+/* 颜色选择器 */
+.colorPicker {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.colorOption {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.colorOption:hover {
+  transform: scale(1.1);
+  box-shadow: var(--shadow-sm);
+}
+
+.colorOption.isActive {
+  border-color: var(--color-text);
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-primary);
+}
+
 /* 依赖关系 */
 .dependencyList {
   margin-top: 8px;

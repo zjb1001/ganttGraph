@@ -163,7 +163,7 @@ export async function executeAgentAction(action: AgentAction): Promise<string> {
   try {
     switch (action.type) {
       case 'add_task': {
-        const { title, startDate, dueDate, bucketId, priority, status, description } = action.params;
+        const { title, startDate, dueDate, bucketId, priority, status, description, color } = action.params;
 
         // Find or use specified bucket (supports name or ID)
         let targetBucketId = bucketId;
@@ -193,6 +193,7 @@ export async function executeAgentAction(action: AgentAction): Promise<string> {
           dueDateTime: parseDate(dueDate),
           status: parseStatus(status),
           priority: parsePriority(priority),
+          color: color || undefined, // 支持自定义颜色
           assigneeIds: [],
           labelIds: [],
           order: tasks.length + 1,
@@ -244,7 +245,7 @@ export async function executeAgentAction(action: AgentAction): Promise<string> {
       }
 
       case 'update_task': {
-        const { taskId, title, startDate, dueDate, progress, priority, status, shiftWeeks, shiftDays } = action.params;
+        const { taskId, title, startDate, dueDate, progress, priority, status, color, shiftWeeks, shiftDays } = action.params;
 
         // Find task by ID (supports full ID or short 8-char prefix)
         let task = tasks.find(t => t.id === taskId || t.id.startsWith(taskId || ''));
@@ -281,6 +282,7 @@ export async function executeAgentAction(action: AgentAction): Promise<string> {
         if (progress !== undefined) updates.completedPercent = progress;
         if (priority !== undefined) updates.priority = parsePriority(priority);
         if (status !== undefined) updates.status = parseStatus(status);
+        if (color !== undefined) updates.color = color;
 
         await store.updateTask(task.id, updates);
 

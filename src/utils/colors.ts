@@ -11,6 +11,23 @@ export const PRIORITY_COLORS = {
   Low: '#94a3b8'
 } as const
 
+// 任务默认颜色
+export const DEFAULT_TASK_COLOR = '#0078d4' // 蓝色
+
+// 任务预设颜色（供用户选择，包含常见分组颜色）
+export const TASK_COLORS = [
+  '#0078d4', // 蓝色（默认，匹配常见分组颜色）
+  '#107c10', // 绿色
+  '#d83b01', // 橙色
+  '#e81123', // 红色
+  '#5c2d91', // 紫色
+  '#008272', // 青色
+  '#a19f9d', // 灰色
+  '#ffb900', // 黄色
+  '#8764b8', // 紫罗兰
+  '#f2c811'  // 金色
+] as const
+
 // 任务状态颜色
 export const STATUS_COLORS = {
   NotStarted: '#94a3b8',
