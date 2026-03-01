@@ -1,143 +1,156 @@
 # Gantt Graph - 任务管理甘特图系统
 
-一个功能完整的在线甘特图任务管理系统，支持里程碑管理、任务依赖关系、可视化时间轴等功能。
+一个支持 AI 助手的在线甘特图系统，包含前端可视化管理与 FastAPI Agent 服务，支持把自然语言指令转换为结构化操作并自动执行。
 
 ## ✨ 主要功能
 
-- 📊 **交互式甘特图**：年-月-周三层时间轴结构
-- 🗓️ **动态时间轴范围**：可自定义起始/结束日期，支持跨年度范围，一键从任务数据自动适配
-- 🏁 **里程碑管理**：独立的里程碑分组和标记
-- 🔗 **任务依赖**：可视化任务依赖关系，支持延迟约束
-- 📝 **内联编辑**：直接在甘特图中编辑任务名称和日期
-- 📤 **导出功能**：导出为高清图片或 PDF 文档
-- 💾 **本地存储**：基于 IndexedDB 的本地优先架构
-- 🎨 **现代化 UI**：简洁直观的用户界面，工具栏支持自由拖拽摆放
+- 📊 **交互式甘特图**：年-月-周三层时间轴，支持跨年度
+- 🗓️ **动态时间轴范围**：自定义起止日期，一键按任务数据自适应
+- 🏁 **里程碑管理**：任务分组与里程碑分组并存
+- 🔗 **任务依赖**：可视化依赖关系，支持增删
+- 📝 **内联编辑**：直接编辑任务名称、日期、进度
+- 📤 **导出功能**：导出 PNG / JPEG / PDF
+- 💾 **本地存储**：Dexie + IndexedDB 本地优先
+- 🤖 **AI Assistant**：自然语言创建/更新任务、分组、里程碑、查询、折叠/展开分组
+
+## 🏗️ 架构说明
+
+- **Web Frontend**（Vite + React + TypeScript）运行在 `http://localhost:5173`
+- **AI Agent Service**（FastAPI + LLM）运行在 `http://localhost:8000`
+- 前端将上下文发送到 Agent，Agent 返回 `actions[]`，前端执行 `agentTools.ts` 中对应动作
 
 ## 🚀 快速开始
 
-### 方式一：使用安装脚本（推荐）
+### 方式一：一键启动 Web + Agent（推荐）
 
-**Linux/macOS:**
+Linux/macOS:
 ```bash
-bash setup.sh
+./start.sh
 ```
 
-**Windows:**
-```cmd
-setup.bat
+Windows:
+```bat
+start.bat
 ```
 
-### 方式二：手动安装
+脚本会自动：
+- 检查 Node.js / Python 环境
+- 安装缺失依赖
+- 启动 Agent（8000）和 Web（5173）
+- 输出日志到 `logs/web-dev.log`、`logs/agent-service.log`
 
-1. **克隆仓库**
-```bash
-git clone https://github.com/zjb1001/ganttGraph.git
-cd ganttGraph
-```
+### 方式二：仅启动前端
 
-2. **安装依赖**
 ```bash
 npm install
-```
-
-3. **启动开发服务器**
-```bash
 npm run dev
 ```
 
-4. **打开浏览器**
-访问 http://localhost:5173
-
-## 📦 可用命令
+### 方式三：单独启动 Agent
 
 ```bash
-# 启动开发服务器
+cd agent-service
+cp .env.example .env
+# 配置 LLM 相关环境变量
+python3 main.py
+```
+
+## 📦 常用命令
+
+```bash
+# 前端开发
 npm run dev
 
-# 构建生产版本
+# 同时启动 Web + Agent
+npm run start
+
+# 构建 / 预览
 npm run build
-
-# 预览生产构建
 npm run preview
+
+# 代码检查
+npm run lint
 
 # 构建 Windows 可执行文件（release/gantt-graph.exe）
 npm run build:exe
 ```
 
+## 🤖 AI Assistant 能力
+
+支持的典型指令：
+- 新增任务、里程碑、分组
+- 批量更新任务时间/进度
+- 删除任务或分组（带确认）
+- 查询项目概览/任务/分组/里程碑
+- 折叠或展开指定类型分组（如“将里程碑分组折叠起来”）
+
+前端相关实现位置：
+- `src/components/AIAssistant/`
+- `src/utils/agentApi.ts`
+- `src/utils/agentTools.ts`
+
+后端相关实现位置：
+- `agent-service/main.py`
+
 ## 🎯 使用指南
 
-### 基本操作
+### 基本交互
 
-- **编辑任务**：点击任务名称进行编辑
-- **创建依赖**：按住 Ctrl/Cmd + 点击两个任务
-- **删除依赖**：双击依赖连线
-- **缩放视图**：使用工具栏的 +/- 按钮或适应屏幕按钮
-- **折叠/展开**：使用折叠按钮收起或展开所有分组
+- 点击任务名称可编辑
+- `Ctrl/Cmd + 点击` 两个任务可创建依赖
+- 双击依赖连线可删除依赖
+- 使用工具栏进行缩放与视图控制
+- 使用分组操作按钮折叠/展开
 
-### 时间轴范围
+### 时间轴控制
 
-悬浮工具栏左侧提供时间轴控制区：
-
-- 📅 **起始 / 结束日期**：直接修改输入框，时间轴立即重新生成，支持任意跨年范围
-- 🔍 **自适应**：点击"自适应"按钮，自动计算当前项目所有任务的最早开始~最晚结束时间，并各留 7 天缓冲
+- 直接输入起始/结束日期，实时刷新时间轴
+- 点击“自适应”自动匹配当前任务范围（含缓冲）
 
 ### 悬浮工具栏
 
-工具栏为可自由拖拽的悬浮面板：
-
-- 拖住左侧 **⠿ 拖拽手柄** 可将工具栏移动到任意位置
-- 点击按钮、输入日期时不会意外触发拖拽
-
-### 导出功能
-
-点击工具栏右侧的导出按钮：
-
-- 📷 **PNG 图片**：高质量截图，适合屏幕分享
-- 🖼️ **JPEG 图片**：压缩图片，文件更小
-- 📄 **PDF 文档**：300 DPI 打印质量，适合打印和归档
+- 拖住 **⠿ 手柄** 可移动工具栏
+- 日期输入与按钮点击不会误触拖拽
 
 ## 🛠️ 技术栈
 
-- **React 18** - UI 框架
-- **TypeScript** - 类型安全
-- **Vite** - 构建工具
-- **Zustand** - 状态管理
-- **Dexie.js** - IndexedDB 封装
-- **html2canvas** - 截图导出
-- **jsPDF** - PDF 生成
+- React 18 + TypeScript + Vite
+- Zustand（状态管理）
+- Dexie（IndexedDB）
+- FastAPI（Agent 服务）
+- OpenAI-compatible LLM API（当前支持 Zhipu 等）
+- html2canvas + jsPDF（导出）
 
 ## 📁 项目结构
 
-```
+```text
 ganttGraph/
 ├── src/
-│   ├── components/     # React 组件
-│   │   ├── GanttView/  # 甘特图组件
-│   │   ├── Dashboard/  # 仪表板
+│   ├── components/
+│   │   ├── AIAssistant/
+│   │   ├── GanttView/
+│   │   ├── ListView/
+│   │   ├── BoardView/
 │   │   └── ...
-│   ├── store/          # Zustand 状态管理
-│   ├── db/             # IndexedDB 数据库
-│   ├── types/          # TypeScript 类型定义
-│   └── utils/          # 工具函数
-├── public/             # 静态资源
-├── setup.sh            # Linux/macOS 安装脚本
-├── setup.bat           # Windows 安装脚本
+│   ├── store/
+│   ├── db/
+│   ├── types/
+│   └── utils/
+├── agent-service/
+│   ├── main.py
+│   ├── requirements.txt
+│   └── .env.example
+├── logs/
+├── start.sh
+├── start.bat
+├── setup.sh
+├── setup.bat
 └── package.json
 ```
 
-## 📋 Changelog
-
-### v0.2.0 (2026-02-28)
-- 🗓️ 新增动态时间轴范围：可自定义起始/结束日期，实时刷新整条时间轴
-- 🔍 新增"自适应"按钮：自动从项目任务计算最优时间范围（±7 天缓冲）
-- 🖱️ 工具栏改为可拖拽悬浮面板，位置自由摆放，不再遮挡时间轴内容
-
-### v0.1.0
-- 初始版本：甘特图、里程碑、任务依赖、导出功能
-
 ## 🤝 贡献
 
-欢迎提交 Issue 和 Pull Request！
+欢迎提交 Issue 和 Pull Request。
 
 ## 📄 许可证
 
@@ -145,5 +158,5 @@ MIT License
 
 ## 🔗 相关链接
 
-- 在线演示：即将推出
+- 仓库地址：https://github.com/zjb1001/ganttGraph
 - 问题反馈：https://github.com/zjb1001/ganttGraph/issues
