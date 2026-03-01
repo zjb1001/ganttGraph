@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useAppStore } from '@/store/appStore'
 import { Task, TaskStatus, TaskPriority, TaskType, DeadlineConstraint } from '@/types'
 import { formatDate, formatDateTime, getDaysBetween } from '@/utils/date'
-import { STATUS_COLORS } from '@/utils/colors'
+import { STATUS_COLORS, TASK_COLORS, DEFAULT_TASK_COLOR } from '@/utils/colors'
 import styles from './TaskPanel.module.css'
 
 export default function TaskPanel() {
@@ -171,6 +171,21 @@ export default function TaskPanel() {
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          <div className={styles.section}>
+            <label className={styles.label}>任务颜色</label>
+            <div className={styles.colorPicker}>
+              {TASK_COLORS.map((color) => (
+                <button
+                  key={color}
+                  className={`${styles.colorOption} ${(task.color || bucket?.color || DEFAULT_TASK_COLOR) === color ? styles.isActive : ''}`}
+                  style={{ backgroundColor: color }}
+                  onClick={() => handleUpdate('color', color)}
+                  title={color}
+                />
+              ))}
             </div>
           </div>
 

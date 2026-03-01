@@ -86,6 +86,9 @@ export interface Task {
   priority: TaskPriority
   completedPercent?: number
 
+  // 自定义颜色
+  color?: string  // 任务颜色，默认为蓝色
+
   // 分配和标签
   assigneeIds: string[]
   labelIds: string[]
