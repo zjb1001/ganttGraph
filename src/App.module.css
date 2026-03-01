@@ -138,3 +138,12 @@
     transform: rotate(360deg);
   }
 }
+
+/* AI Assistant container - positioned in right bottom area, above action panel */
+.aiAssistantContainer {
+  position: fixed;
+  bottom: var(--action-panel-offset, 56px);
+  right: 16px;
+  z-index: 1000;
+  transition: bottom 0.2s ease;
+}

@@ -12,6 +12,7 @@ interface AppStore {
   selectedTaskId: string | null
   timeUnit: TimeUnit
   sidebarCollapsed: boolean
+  collapsedBucketIds: Set<string>
 
   setCurrentProjectId: (projectId: string | null) => void
   setCurrentView: (view: ViewType) => void
@@ -19,6 +20,9 @@ interface AppStore {
   setTimeUnit: (unit: TimeUnit) => void
   toggleSidebar: () => void
   setSidebarCollapsed: (collapsed: boolean) => void
+  toggleBucketCollapse: (bucketId: string) => void
+  setBucketCollapsed: (bucketId: string, collapsed: boolean) => void
+  collapseBucketsByType: (bucketType: 'task' | 'milestone' | 'all', collapsed: boolean) => void
 
   // ============================================
   // 数据状态
@@ -74,6 +78,7 @@ export const useAppStore = create<AppStore>()(
         selectedTaskId: null,
         timeUnit: 'week',
         sidebarCollapsed: false,
+        collapsedBucketIds: new Set<string>(),
 
         projects: [],
         tasks: [],
@@ -95,6 +100,41 @@ export const useAppStore = create<AppStore>()(
         toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
         setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+
+        toggleBucketCollapse: (bucketId) => set((state) => {
+          const next = new Set(state.collapsedBucketIds)
+          if (next.has(bucketId)) {
+            next.delete(bucketId)
+          } else {
+            next.add(bucketId)
+          }
+          return { collapsedBucketIds: next }
+        }),
+
+        setBucketCollapsed: (bucketId, collapsed) => set((state) => {
+          const next = new Set(state.collapsedBucketIds)
+          if (collapsed) {
+            next.add(bucketId)
+          } else {
+            next.delete(bucketId)
+          }
+          return { collapsedBucketIds: next }
+        }),
+
+        collapseBucketsByType: (bucketType, collapsed) => set((state) => {
+          const next = new Set(state.collapsedBucketIds)
+          const targetBuckets = bucketType === 'all'
+            ? state.buckets
+            : state.buckets.filter(b => b.bucketType === bucketType)
+          for (const b of targetBuckets) {
+            if (collapsed) {
+              next.add(b.id)
+            } else {
+              next.delete(b.id)
+            }
+          }
+          return { collapsedBucketIds: next }
+        }),
 
         // ============================================
         // 加载数据

@@ -18,7 +18,7 @@ interface DateInfo {
 }
 
 export default function GanttView() {
-  const { tasks, buckets, currentProjectId, setSelectedTaskId, addDependency, removeDependency, updateTask, addTask, deleteTask, addBucket, updateBucket, deleteBucket, projects } = useAppStore()
+  const { tasks, buckets, currentProjectId, setSelectedTaskId, addDependency, removeDependency, updateTask, addTask, deleteTask, addBucket, updateBucket, deleteBucket, projects, collapsedBucketIds: collapsedBuckets, toggleBucketCollapse, collapseBucketsByType } = useAppStore()
   const ganttRef = useRef<HTMLDivElement>(null)
   const ganttScrollRef = useRef<HTMLDivElement>(null)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
@@ -51,8 +51,9 @@ export default function GanttView() {
   const [newGroupName, setNewGroupName] = useState('')
   // 操作面板折叠
   const [hintsCollapsed, setHintsCollapsed] = useState(true)
-  // 折叠的分组
-  const [collapsedBuckets, setCollapsedBuckets] = useState<Set<string>>(new Set())
+  const actionPanelRef = useRef<HTMLDivElement>(null)
+  // 折叠的分组 (from store)
+  // const [collapsedBuckets] is now from store as collapsedBucketIds
   // 时间轴起止日期
   const _defaultYear = new Date().getFullYear()
   const [timelineStart, setTimelineStart] = useState(`${_defaultYear}-01-01`)
@@ -84,6 +85,30 @@ export default function GanttView() {
   // 里程碑任务按 bucketId 归属到对应里程碑分组
   const milestoneTasks = useMemo(() => projectTasks.filter((t) => t.taskType === 'milestone'), [projectTasks])
   const regularTasks = useMemo(() => projectTasks.filter((t) => t.taskType !== 'milestone' && !milestoneBucketIds.has(t.bucketId)), [projectTasks, milestoneBucketIds])
+
+  // ── Publish action panel height as CSS variable for AI assistant positioning ──
+  useEffect(() => {
+    const updatePanelOffset = () => {
+      if (actionPanelRef.current) {
+        const panelHeight = actionPanelRef.current.offsetHeight
+        // 12px = action panel bottom offset, 12px = gap between panel and AI FAB
+        const offset = panelHeight + 12 + 12
+        document.documentElement.style.setProperty('--action-panel-offset', `${offset}px`)
+      }
+    }
+    // Small delay to allow DOM to settle after expand/collapse
+    const timer = setTimeout(updatePanelOffset, 50)
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [hintsCollapsed])
+
+  // Reset CSS variable on unmount (when navigating away from Gantt view)
+  useEffect(() => {
+    return () => {
+      document.documentElement.style.setProperty('--action-panel-offset', '16px')
+    }
+  }, [])
 
   // ── 孤儿里程碑迁移：如果存在旧的里程碑没有归属到任何里程碑分组，自动创建默认分组并迁移 ──
   const migrationDone = useRef(false)
@@ -172,24 +197,15 @@ export default function GanttView() {
   }, [projectBuckets, regularTasks, milestoneTasks, milestoneBuckets, collapsedBuckets, addingMilestoneBucketId, addingMilestoneGroup, addingTaskBucketId, addingGroup])
 
   const toggleBucket = (bucketId: string) => {
-    setCollapsedBuckets((prev) => {
-      const next = new Set(prev)
-      if (next.has(bucketId)) next.delete(bucketId)
-      else next.add(bucketId)
-      return next
-    })
+    toggleBucketCollapse(bucketId)
   }
 
   const handleCollapseAll = () => {
-    const allIds = new Set<string>([
-      ...milestoneBuckets.map((b) => b.id),
-      ...projectBuckets.map((b) => b.id),
-    ])
-    setCollapsedBuckets(allIds)
+    collapseBucketsByType('all', true)
   }
 
   const handleExpandAll = () => {
-    setCollapsedBuckets(new Set())
+    collapseBucketsByType('all', false)
   }
 
   // 获取某任务在 rowItems 中的索引（-1 表示已折叠不可见）
@@ -502,11 +518,7 @@ export default function GanttView() {
     setNewMilestoneTitle('')
     setAddingMilestoneBucketId(bucketId)
     // 确保分组展开
-    setCollapsedBuckets((prev) => {
-      const next = new Set(prev)
-      next.delete(bucketId)
-      return next
-    })
+    useAppStore.getState().setBucketCollapsed(bucketId, false)
   }
 
   const handleSaveNewMilestone = async () => {
@@ -648,11 +660,7 @@ export default function GanttView() {
     e.stopPropagation()
     e.preventDefault()
     // 确保分组展开
-    setCollapsedBuckets((prev) => {
-      const next = new Set(prev)
-      next.delete(bucketId)
-      return next
-    })
+    useAppStore.getState().setBucketCollapsed(bucketId, false)
     const today = new Date()
     const yyyy = today.getFullYear()
     const mm = String(today.getMonth() + 1).padStart(2, '0')
@@ -1755,7 +1763,10 @@ export default function GanttView() {
       </div>
 
       {/* 操作面板 */}
-      <div className={`${styles.actionPanel} ${hintsCollapsed ? styles.actionPanelCollapsed : ''}`}>
+      <div
+        ref={actionPanelRef}
+        className={`${styles.actionPanel} ${hintsCollapsed ? styles.actionPanelCollapsed : ''}`}
+      >
         <button
           className={styles.actionPanelToggle}
           onClick={() => setHintsCollapsed((v) => !v)}

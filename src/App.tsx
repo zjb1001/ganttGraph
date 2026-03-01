@@ -7,6 +7,7 @@ import BoardView from './components/BoardView/BoardView'
 import ListView from './components/ListView/ListView'
 import TaskPanel from './components/TaskPanel/TaskPanel'
 import Dashboard from './components/Dashboard/Dashboard'
+import { AIAssistant } from './components/AIAssistant'
 import { initializeSampleData } from './db'
 import styles from './App.module.css'
 
@@ -78,6 +79,9 @@ function App() {
         </div>
       </div>
       <TaskPanel />
+      <div className={styles.aiAssistantContainer}>
+        <AIAssistant />
+      </div>
     </div>
   )
 }
