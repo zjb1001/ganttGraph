@@ -8,7 +8,7 @@ interface Message {
 }
 
 export function Test() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [, setMessages] = useState<Message[]>([]);
 
   setMessages(prev => [...prev, {
     role: 'assistant',

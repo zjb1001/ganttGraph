@@ -115,7 +115,7 @@ export function AIAssistant() {
       }
 
       // Check if confirmation is required
-      const needsConfirmation = response.requiresConfirmation && response.actions?.length > 0;
+      const needsConfirmation = response.requiresConfirmation && (response.actions?.length ?? 0) > 0;
 
       if (needsConfirmation) {
         setPendingResponse(response);
