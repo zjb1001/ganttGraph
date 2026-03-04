@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { Task } from '@/types'
 
 // Mock fetch
-global.fetch = vi.fn()
+(window as any).fetch = vi.fn()
 
 // Import after mock
 const {
@@ -96,9 +96,17 @@ describe('Enhanced Agent API', () => {
         dueDateTime: new Date(),
         completedPercent: 30,
         status: 'InProgress',
-        priority: 'High',
-        dependencies: []
-      } as Task]
+        priority: 'Urgent',
+        dependencies: [],
+        projectId: 'proj-1',
+        bucketId: 'bucket-1',
+        taskType: 'task',
+        assigneeIds: [],
+        labelIds: [],
+        order: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }]
 
       const result = await analyzeProjectRisks(mockTasks)
 

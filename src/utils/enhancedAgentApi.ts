@@ -269,7 +269,6 @@ export async function analyzeResources(
       startDate: t.startDateTime,
       dueDate: t.dueDateTime,
       assigneeIds: t.assigneeIds || [],
-      resources: t.resources || []
     }))
   };
 

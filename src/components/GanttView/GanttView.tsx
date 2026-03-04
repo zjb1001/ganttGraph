@@ -1170,7 +1170,7 @@ export default function GanttView() {
                       className={`${styles.milestone} ${dragStartTask === row.task.id ? styles.isDragging : ''}`}
                       style={{ left: `${getTaskPosition(row.task).left}px` }}
                       onClick={(e) => handleGanttMilestoneClick(e, row.task)}
-                      onDoubleClick={() => handleTaskDoubleClick(row.task)}
+                      onDoubleClick={() => handleTaskDoubleClick()}
                       title={ganttEditingId === row.task.id ? undefined : `${row.task.title} · ${new Date(row.task.startDateTime).toLocaleDateString('zh-CN')} · 点击编辑`}
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" className={styles.milestoneIcon}>
@@ -1491,7 +1491,7 @@ export default function GanttView() {
                         backgroundColor: row.task.color || '#0078d4'
                       }}
                       onClick={(e) => handleTaskClick(e, row.task)}
-                      onDoubleClick={() => handleTaskDoubleClick(row.task)}
+                      onDoubleClick={() => handleTaskDoubleClick()}
                       title={`${row.task.title}\n${dispStart.toLocaleDateString('zh-CN')} - ${dispEnd.toLocaleDateString('zh-CN')}`}
                     >
                       {(row.task.completedPercent || 0) > 0 && (
