@@ -1,162 +1,196 @@
-# Gantt Graph - 任务管理甘特图系统
+# Gantt Graph AI - AI增强版甘特图
 
-一个支持 AI 助手的在线甘特图系统，包含前端可视化管理与 FastAPI Agent 服务，支持把自然语言指令转换为结构化操作并自动执行。
+<p align="center">
+  <img src="web-demo/gantt-screenshot.png" alt="Gantt Graph AI Screenshot" width="100%">
+</p>
 
-## ✨ 主要功能
+<p align="center">
+  <a href="#功能特性">功能特性</a> •
+  <a href="#快速开始">快速开始</a> •
+  <a href="#AI功能">AI功能</a> •
+  <a href="#项目结构">项目结构</a> •
+  <a href="#技术栈">技术栈</a>
+</p>
 
-- 📊 **交互式甘特图**：年-月-周三层时间轴，支持跨年度
-- 🗓️ **动态时间轴范围**：自定义起止日期，一键按任务数据自适应
-- 🏁 **里程碑管理**：任务分组与里程碑分组并存
-- 🔗 **任务依赖**：可视化依赖关系，支持增删
-- 📝 **内联编辑**：直接编辑任务名称、日期、进度
-- 📤 **导出功能**：导出 PNG / JPEG / PDF
-- 💾 **本地存储**：Dexie + IndexedDB 本地优先
-- 🤖 **AI Assistant**：自然语言创建/更新任务、分组、里程碑、查询、折叠/展开分组
+<p align="center">
+  <img src="https://img.shields.io/badge/React-18-blue?logo=react" alt="React">
+  <img src="https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Python-3.12-blue?logo=python" alt="Python">
+  <img src="https://img.shields.io/badge/FastAPI-latest-green?logo=fastapi" alt="FastAPI">
+  <img src="https://img.shields.io/badge/智谱GLM--4-AI-orange" alt="智谱GLM-4">
+</p>
 
-## 🏗️ 架构说明
+## ✨ 功能特性
 
-- **Web Frontend**（Vite + React + TypeScript）运行在 `http://localhost:5173`
-- **AI Agent Service**（FastAPI + LLM）运行在 `http://localhost:8000`
-- 前端将上下文发送到 Agent，Agent 返回 `actions[]`，前端执行 `agentTools.ts` 中对应动作
+### 🤖 AI智能助手（核心亮点）
+- **🧩 智能任务分解** - 输入自然语言需求，AI自动生成结构化项目计划
+- **⚠️ 风险分析** - 自动识别项目风险，提供改进建议
+- **🔮 进度预测** - 基于CPM算法预测项目完成时间，识别关键路径
+
+### 📊 甘特图可视化
+- 直观的任务时间线展示
+- 里程碑管理
+- 任务依赖关系可视化
+- 进度跟踪
+
+### 🎯 项目管理
+- 多项目管理
+- 团队任务分配
+- 优先级设置
+- 本地数据存储（IndexedDB）
 
 ## 🚀 快速开始
 
-### 方式一：一键启动 Web + Agent（推荐）
-
-Linux/macOS:
-```bash
-./start.sh
-```
-
-Windows:
-```bat
-start.bat
-```
-
-脚本会自动：
-- 检查 Node.js / Python 环境
-- 安装缺失依赖
-- 启动 Agent（8000）和 Web（5173）
-- 输出日志到 `logs/web-dev.log`、`logs/agent-service.log`
-
-### 方式二：仅启动前端
+### 前端启动
 
 ```bash
+# 安装依赖
 npm install
+
+# 启动开发服务器
 npm run dev
 ```
 
-### 方式三：单独启动 Agent
+### 后端AI服务启动
 
 ```bash
 cd agent-service
+
+# 安装Python依赖
+pip install -r requirements.txt
+
+# 配置环境变量
 cp .env.example .env
-# 配置 LLM 相关环境变量
-python3 main.py
+# 编辑 .env 文件，填入你的智谱API Key
+
+# 启动AI服务
+python3 enhanced_ai_service.py
 ```
 
-## 📦 常用命令
+### 配置AI服务
 
-```bash
-# 前端开发
-npm run dev
+编辑 `agent-service/.env`：
 
-# 同时启动 Web + Agent
-npm run start
-
-# 构建 / 预览
-npm run build
-npm run preview
-
-# 代码检查
-npm run lint
-
-# 构建 Windows 可执行文件（release/gantt-graph.exe）
-npm run build:exe
+```env
+LLM_PROVIDER=zhipu
+LLM_API_KEY=your_zhipu_api_key_here
+LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+LLM_MODEL=glm-4
+PORT=8000
 ```
 
-## 🤖 AI Assistant 能力
+获取智谱API Key：[https://platform.moonshot.cn/](https://platform.moonshot.cn/)
 
-支持的典型指令：
-- 新增任务、里程碑、分组
-- 批量更新任务时间/进度
-- 删除任务或分组（带确认）
-- 查询项目概览/任务/分组/里程碑
-- 折叠或展开指定类型分组（如“将里程碑分组折叠起来”）
+## 🧠 AI功能演示
 
-前端相关实现位置：
-- `src/components/AIAssistant/`
-- `src/utils/agentApi.ts`
-- `src/utils/agentTools.ts`
+### 1. 智能任务分解
 
-后端相关实现位置：
-- `agent-service/main.py`
+输入项目需求：
+```
+开发一套完整的整车电子制动系统，包含：
+- 主控制器：基于AUTOSAR架构的BCU
+- 传感器系统：轮速、踏板位置、压力传感器  
+- 执行机构：ESC模块、ABS阀体、EPB电机
+- 核心功能：ABS、EBD、ESC、EPB、Autohold
+- 技术要求：ASIL-D、ISO 26262、响应<200ms
+- 开发周期：18个月，团队15人
+```
 
-## 🎯 使用指南
+AI输出：
+- ✅ 7个开发阶段
+- ✅ 28个具体任务
+- ✅ 540天工期规划
+- ✅ 任务依赖关系
+- ✅ 关键里程碑
 
-### 基本交互
+### 2. 技术要素覆盖分析
 
-- 点击任务名称可编辑
-- `Ctrl/Cmd + 点击` 两个任务可创建依赖
-- 双击依赖连线可删除依赖
-- 使用工具栏进行缩放与视图控制
-- 使用分组操作按钮折叠/展开
-
-### 时间轴控制
-
-- 直接输入起始/结束日期，实时刷新时间轴
-- 点击“自适应”自动匹配当前任务范围（含缓冲）
-
-### 悬浮工具栏
-
-- 拖住 **⠿ 手柄** 可移动工具栏
-- 日期输入与按钮点击不会误触拖拽
-
-## 🛠️ 技术栈
-
-- React 18 + TypeScript + Vite
-- Zustand（状态管理）
-- Dexie（IndexedDB）
-- FastAPI（Agent 服务）
-- OpenAI-compatible LLM API（当前支持 Zhipu 等）
-- html2canvas + jsPDF（导出）
+AI自动识别项目中的关键技术要素：
+- ✅ 系统架构
+- ✅ 传感器系统
+- ✅ 执行机构
+- ✅ 通信网络
+- ✅ 功能开发
+- ✅ 功能安全
+- ✅ 测试验证
 
 ## 📁 项目结构
 
-```text
-ganttGraph/
-├── src/
-│   ├── components/
-│   │   ├── AIAssistant/
-│   │   ├── GanttView/
-│   │   ├── ListView/
-│   │   ├── BoardView/
-│   │   └── ...
-│   ├── store/
-│   ├── db/
-│   ├── types/
-│   └── utils/
-├── agent-service/
-│   ├── main.py
-│   ├── requirements.txt
-│   └── .env.example
-├── logs/
-├── start.sh
-├── start.bat
-├── setup.sh
-├── setup.bat
-└── package.json
 ```
+ganttGraph/
+├── 📁 src/                      # 前端React源码
+│   ├── components/              # 组件
+│   ├── pages/                   # 页面
+│   ├── stores/                  # 状态管理
+│   └── utils/                   # 工具函数
+├── 📁 agent-service/            # AI后端服务
+│   ├── enhanced_ai_service.py   # FastAPI服务
+│   ├── test_*.py                # 测试脚本
+│   ├── requirements.txt         # Python依赖
+│   └── .env.example             # 环境配置示例
+├── 📁 web-demo/                 # Web演示
+│   ├── gantt-preview.html       # 界面预览
+│   └── gantt-screenshot.png     # 截图
+├── 📄 package.json              # 前端依赖
+├── 📄 vite.config.ts            # Vite配置
+└── 📄 README.md                 # 项目说明
+```
+
+## 🛠️ 技术栈
+
+### 前端
+- **React 18** - UI框架
+- **TypeScript** - 类型安全
+- **Vite** - 构建工具
+- **Zustand** - 状态管理
+- **Dexie.js** - IndexedDB封装
+- **@dnd-kit** - 拖拽交互
+
+### 后端
+- **FastAPI** - Python Web框架
+- **OpenAI SDK** - LLM调用
+- **智谱GLM-4** - AI模型
+- **Pydantic** - 数据验证
+
+## 🧪 测试验证
+
+项目已验证的AI功能：
+
+| 功能 | 状态 | 详情 |
+|------|------|------|
+| API连接 | ✅ | 智谱GLM-4响应正常 |
+| 任务分解 | ✅ | 支持专业技术项目 |
+| 风险分析 | ✅ | 识别延期、依赖风险 |
+| 进度预测 | ✅ | CPM算法+关键路径 |
+
+测试案例：
+- [展销会计划](./agent-service/test_exhibition_glm4.py) - 活动策划类
+- [制动系统开发](./agent-service/test_braking_system.py) - 汽车电子专业类
+
+## 📸 界面展示
+
+### 主界面
+![主界面](web-demo/gantt-screenshot.png)
+
+### AI功能展示
+![展销会计划](./agent-service/test_report_visual.png)
 
 ## 🤝 贡献
 
-欢迎提交 Issue 和 Pull Request。
+欢迎提交Issue和Pull Request！
 
 ## 📄 许可证
 
-MIT License
+[MIT License](./LICENSE)
 
-## 🔗 相关链接
+## 🙏 致谢
 
-- 仓库地址：https://github.com/zjb1001/ganttGraph
-- 问题反馈：https://github.com/zjb1001/ganttGraph/issues
+- [智谱AI](https://platform.moonshot.cn/) - 提供GLM-4模型支持
+- [React](https://react.dev/) - 前端框架
+- [FastAPI](https://fastapi.tiangolo.com/) - 后端框架
+
+---
+
+<p align="center">
+  Made with ❤️ by Gantt Graph AI Team
+</p>

@@ -1,14 +1,12 @@
-# Gantt Graph AI Agent Service Dependencies
-
-# Fast API web framework
+# Python依赖
 fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
-
-# OpenAI SDK (works with compatible APIs)
-openai>=1.0.0
-
-# Environment variables
+uvicorn>=0.24.0
+pydantic>=2.5.0
 python-dotenv>=1.0.0
+openai>=1.0.0
+requests>=2.31.0
 
-# Data validation
-pydantic>=2.0.0
+# 可选：测试和开发
+pytest>=7.4.0
+httpx>=0.25.0
+pillow>=10.0.0
