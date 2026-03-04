@@ -57,6 +57,7 @@ class TaskStatus(str, Enum):
 class Priority(str, Enum):
     """优先级"""
     URGENT = "Urgent"
+    URGENT_ALT = "High"  # 兼容替代写法
     IMPORTANT = "Important"
     NORMAL = "Normal"
     LOW = "Low"
@@ -1272,4 +1273,4 @@ async def chat(request: NaturalLanguageRequest):
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=port, reload=False)
