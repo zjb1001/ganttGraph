@@ -15,6 +15,15 @@ function calculateSimilarity(str1: string, str2: string): number {
   if (s1 === s2) return 1;
   if (s1.length === 0 || s2.length === 0) return 0;
 
+  // Check for substring containment (higher weight for containment)
+  if (s1.includes(s2) || s2.includes(s1)) {
+    const longer = Math.max(s1.length, s2.length);
+    const shorter = Math.min(s1.length, s2.length);
+    // If one is contained in the other, return high similarity
+    // Score based on how much of the longer string is covered
+    return 0.7 + 0.3 * (shorter / longer);
+  }
+
   const matrix: number[][] = [];
   for (let i = 0; i <= s2.length; i++) {
     matrix[i] = [i];
