@@ -8,6 +8,7 @@ import ListView from './components/ListView/ListView'
 import TaskPanel from './components/TaskPanel/TaskPanel'
 import Dashboard from './components/Dashboard/Dashboard'
 import { AIAssistant } from './components/AIAssistant'
+import { AIAssistantPanel } from './components/AIAssistant/AIAssistantPanel'
 import { initializeSampleData } from './db'
 import styles from './App.module.css'
 
@@ -73,6 +74,7 @@ function App() {
           <Sidebar />
         </div>
         <div className={styles.content}>
+          <AIAssistantPanel />
           {currentView === 'gantt' && <GanttView />}
           {currentView === 'board' && <BoardView />}
           {currentView === 'list' && <ListView />}
