@@ -234,7 +234,7 @@ export default function GanttView() {
 
     // 生成日期信息
     const dateInfo: DateInfo[] = []
-    let current = new Date(startDate)
+    const current = new Date(startDate)
 
     while (current <= endDate) {
       const dayOfWeek = current.getDay()
@@ -440,7 +440,7 @@ export default function GanttView() {
     }
   }
 
-  const handleTaskDoubleClick = (_task: typeof projectTasks[0]) => {
+  const handleTaskDoubleClick = () => {
     // 已迁移到双击依赖连线删除，此处保留空实现
   }
 

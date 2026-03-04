@@ -471,7 +471,7 @@ export async function executeAgentAction(action: AgentAction): Promise<string> {
         const { queryType } = action.params;
 
         switch (queryType) {
-          case 'summary':
+          case 'summary': {
             const inProgressTasks = tasks.filter(t => t.status === 'InProgress');
             const notStartedTasks = tasks.filter(t => t.status === 'NotStarted');
             const completedTasks = tasks.filter(t => t.status === 'Completed');
@@ -483,13 +483,15 @@ export async function executeAgentAction(action: AgentAction): Promise<string> {
                    `• 进行中: ${inProgressTasks.length}\n` +
                    `• 已完成: ${completedTasks.length}\n` +
                    `• 里程碑: ${milestones.length}`;
+          }
 
           case 'tasks':
             return `📋 任务列表:\n${tasks.map(t => `- ${t.title} (${t.status})`).join('\n')}`;
 
-          case 'milestones':
+          case 'milestones': {
             const milestoneList = tasks.filter(t => t.taskType === 'milestone');
             return `🎯 里程碑:\n${milestoneList.map(t => `- ${t.title} (${t.startDateTime.toLocaleDateString()})`).join('\n')}`;
+          }
 
           case 'buckets':
             return `📁 分组:\n${buckets.map(b => `- ${b.name}`).join('\n')}`;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { Task, Bucket } from '@/types'
+// import type { Task, Bucket } from '@/types'
 
 // Import the functions we want to test
 // Note: Since these are not exported, we need to test them through the public API
