@@ -1,9 +1,11 @@
 /**
  * Level 8: 预测性分析引擎
  * 基于历史数据预测项目风险、工期、资源需求
+ * 支持多行业模板配置
  */
 
 import { Task, GanttContext } from '@/types';
+import { ProjectTemplate, IndustryType, detectIndustryType, getProjectTemplate } from './ProjectTemplates';
 
 // 预测结果类型
 export interface PredictionResult {
@@ -450,6 +452,90 @@ export class PredictiveAnalysisEngine {
     else status = 'critical';
     
     return { score: Math.round(score), status };
+  }
+  
+  // ========== 行业特定分析 ==========
+  
+  /**
+   * 分析行业特定风险
+   */
+  analyzeIndustryRisks(context: GanttContext, industry?: IndustryType): any[] {
+    const detectedIndustry = industry || detectIndustryType(context.tasks);
+    const template = getProjectTemplate(detectedIndustry);
+    const risks: any[] = [];
+    
+    // 检查高风险关键词
+    for (const task of context.tasks) {
+      for (const risk of template.industryRisks) {
+        if (risk.keywords.some(kw => task.title.toLowerCase().includes(kw.toLowerCase()))) {
+          risks.push({
+            taskId: task.id,
+            taskName: task.title,
+            type: risk.type,
+            severity: risk.severity,
+            description: risk.description,
+            mitigation: risk.mitigation
+          });
+        }
+      }
+    }
+    
+    return risks;
+  }
+  
+  /**
+   * 检查强制评审节点状态
+   */
+  checkMandatoryReviews(context: GanttContext, industry?: IndustryType): any[] {
+    const detectedIndustry = industry || detectIndustryType(context.tasks);
+    const template = getProjectTemplate(detectedIndustry);
+    
+    return template.mandatoryReviews.map(review => {
+      const relatedTasks = context.tasks.filter(t => 
+        review.tasks.some(rt => t.title.toLowerCase().includes(rt.toLowerCase()))
+      );
+      
+      const completedTasks = relatedTasks.filter(t => t.status === 'Completed');
+      const completion = relatedTasks.length > 0 
+        ? (completedTasks.length / relatedTasks.length) * 100 
+        : 0;
+      
+      let status: 'passed' | 'in_progress' | 'not_started';
+      if (completion >= 100) status = 'passed';
+      else if (completion > 0) status = 'in_progress';
+      else status = 'not_started';
+      
+      return {
+        gate: `${review.phase} - ${review.gate}`,
+        description: review.description,
+        status,
+        completion: Math.round(completion),
+        relatedTasks: relatedTasks.map(t => t.title)
+      };
+    });
+  }
+  
+  /**
+   * 生成行业特定报告
+   */
+  generateIndustryReport(context: GanttContext, industry?: IndustryType) {
+    const detectedIndustry = industry || detectIndustryType(context.tasks);
+    const template = getProjectTemplate(detectedIndustry);
+    const baseReport = this.generateHealthReport(context);
+    
+    return {
+      ...baseReport,
+      industry: detectedIndustry,
+      industryName: template.name,
+      safetyLevel: template.safetyLevel,
+      kpis: template.kpis,
+      industryRisks: this.analyzeIndustryRisks(context, detectedIndustry),
+      mandatoryReviews: this.checkMandatoryReviews(context, detectedIndustry),
+      recommendations: [
+        ...baseReport.recommendations,
+        `${template.name}特定建议: 关注${template.highRiskKeywords.slice(0, 3).join('、')}等高风险任务`
+      ]
+    };
   }
   
   private generateRecommendations(

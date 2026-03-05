@@ -204,13 +204,12 @@
   border-left-color: #22c55e;
 }
 
-.gateItem.failed {
-  border-left-color: #ef4444;
-  background: #fef2f2;
-}
-
 .gateItem.in_progress {
   border-left-color: #f59e0b;
+}
+
+.gateItem.not_started {
+  border-left-color: #e2e8f0;
 }
 
 .gateHeader {
@@ -237,6 +236,13 @@
   font-weight: 600;
 }
 
+.gateDescription {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 6px;
+  font-style: italic;
+}
+
 .progressBar {
   height: 6px;
   background: #e2e8f0;
@@ -250,13 +256,97 @@
   transition: width 0.3s ease;
 }
 
-.blockingTasks {
-  margin-top: 8px;
-  font-size: 11px;
-  color: #dc2626;
-  background: rgba(220, 38, 38, 0.1);
-  padding: 6px 10px;
-  border-radius: 6px;
+/* New styles for generic industry panel */
+.industryInfo {
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.industryInfo h4 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  color: #1e293b;
+}
+
+.industryInfo p {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.noRisks {
+  text-align: center;
+  padding: 40px;
+  color: #22c55e;
+  font-size: 14px;
+  background: #f0fdf4;
+  border-radius: 10px;
+}
+
+.riskTask {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.sopValue {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-top: 4px;
+}
+
+.sopStats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.sopStat {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.sopStat span:first-child {
+  color: #64748b;
+}
+
+.sopStat span:last-child {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.sopRecommendations {
+  background: #eff6ff;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.sopRecommendations h5 {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: #1e40af;
+}
+
+.sopRecommendations ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.sopRecommendations li {
+  font-size: 12px;
+  color: #1e3a8a;
+  margin-bottom: 6px;
+  line-height: 1.5;
 }
 
 /* Risks Tab */
