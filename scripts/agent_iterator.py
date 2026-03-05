@@ -31,9 +31,9 @@ class AgentAutoIterator:
     
     def save_state(self):
         """保存迭代状态"""
-        self.state["last_update"] = datetime.now().isoformat()
+        self.current_iteration["last_update"] = datetime.now().isoformat()
         with open(self.state_file, "w") as f:
-            json.dump(self.state, f, indent=2)
+            json.dump(self.current_iteration, f, indent=2)
     
     def get_iteration_plan(self):
         """获取迭代计划"""

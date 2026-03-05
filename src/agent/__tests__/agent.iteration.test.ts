@@ -3,7 +3,7 @@
  * 用于验证每个迭代级别
  */
 
-import { GanttAgent } from './SimpleGanttAgent';
+import { GanttAgent } from '../SimpleGanttAgent';
 import { GanttContext } from '@/types';
 
 describe('Agent Iteration Tests', () => {
