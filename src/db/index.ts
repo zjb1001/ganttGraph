@@ -143,9 +143,9 @@ export async function initializeSampleData() {
   const projectCount = await db.projects.count()
 
   if (projectCount === 0) {
-    // 导入制动项目初始化
-    const { initializeBrakingProject } = await import('./brakingProject')
-    await initializeBrakingProject()
-    console.log('✅ 制动产品项目已创建为默认项目')
+    // 导入整车项目初始化
+    const { initializeVehicleProject } = await import('./vehicleProject')
+    await initializeVehicleProject()
+    console.log('✅ 整车项目已创建为默认项目')
   }
 }
