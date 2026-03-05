@@ -235,7 +235,7 @@ export class GanttAgent {
     
     // Level 2
     if (/依赖|循环|关系/.test(m)) return { tool: 'analyze_dependencies', params: {} };
-    if (/排期|调度|安排/.test(m)) return { tool: 'auto_schedule', params: {} };
+    if (/排期|调度|安排|时间/.test(m)) return { tool: 'auto_schedule', params: {} };
     if (/风险|预警/.test(m)) return { tool: 'check_risks', params: {} };
     
     // Level 3
