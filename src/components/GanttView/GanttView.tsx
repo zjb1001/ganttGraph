@@ -10,6 +10,7 @@ import {
   AgentInsightPanel,
   GanttAgentToolbar 
 } from './GanttAgentOverlay'
+import { PredictivePanel } from './PredictivePanel'
 import styles from './GanttView.module.css'
 
 // 日期信息接口
@@ -943,6 +944,9 @@ export default function GanttView() {
     <>
       {/* Agent 洞察面板 */}
       <AgentInsightPanel />
+      
+      {/* Level 8-10: 预测与自主执行面板 */}
+      <PredictivePanel />
       
       <div className={`${styles.ganttView} ${resizePreview ? styles.ganttResizing : ''}`} ref={ganttRef}>
         {/* Agent 工具栏 */}
