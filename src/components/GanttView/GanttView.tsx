@@ -4,6 +4,12 @@ import { STATUS_COLORS, PRIORITY_COLORS } from '@/utils/colors'
 import { getDaysBetween, isToday } from '@/utils/date'
 import { Task, Bucket } from '@/types'
 import { exportAsImage, exportAsPDF } from '@/utils/exportGantt'
+import { 
+  useGanttAgent, 
+  TaskRiskBadge, 
+  AgentInsightPanel,
+  GanttAgentToolbar 
+} from './GanttAgentOverlay'
 import styles from './GanttView.module.css'
 
 // 日期信息接口
@@ -19,6 +25,10 @@ interface DateInfo {
 
 export default function GanttView() {
   const { tasks, buckets, currentProjectId, setSelectedTaskId, addDependency, removeDependency, updateTask, addTask, deleteTask, addBucket, updateBucket, deleteBucket, projects, collapsedBucketIds: collapsedBuckets, toggleBucketCollapse, collapseBucketsByType } = useAppStore()
+  
+  // Agent 功能
+  const { getTaskRisk } = useGanttAgent()
+  
   const ganttRef = useRef<HTMLDivElement>(null)
   const ganttScrollRef = useRef<HTMLDivElement>(null)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
@@ -930,7 +940,13 @@ export default function GanttView() {
   }
 
   return (
-    <div className={`${styles.ganttView} ${resizePreview ? styles.ganttResizing : ''}`} ref={ganttRef}>
+    <>
+      {/* Agent 洞察面板 */}
+      <AgentInsightPanel />
+      
+      <div className={`${styles.ganttView} ${resizePreview ? styles.ganttResizing : ''}`} ref={ganttRef}>
+        {/* Agent 工具栏 */}
+        <GanttAgentToolbar />
       {/* ── 单一滚动容器：同时承载左侧冻结列和右侧时间轴 ── */}
       <div className={styles.ganttScroll} ref={ganttScrollRef}>
         <div className={styles.ganttInner} style={{ width: `${TASK_LIST_WIDTH + totalWidth}px` }}>
@@ -1510,6 +1526,7 @@ export default function GanttView() {
                         title="拖拽调整开始日期"
                       />
                       <span className={styles.taskBarLabel}>{row.task.title}</span>
+                      <TaskRiskBadge risk={getTaskRisk(row.task.id)} />
                       {row.task.deadlineConstraint && (() => {
                         const refTask = tasks.find((t) => t.id === row.task.deadlineConstraint!.refTaskId)
                         if (!refTask) return null
@@ -1796,5 +1813,6 @@ export default function GanttView() {
         )}
       </div>
     </div>
+    </>
   )
 }
