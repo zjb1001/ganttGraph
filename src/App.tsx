@@ -9,6 +9,7 @@ import TaskPanel from './components/TaskPanel/TaskPanel'
 import Dashboard from './components/Dashboard/Dashboard'
 import { AIAssistant } from './components/AIAssistant'
 import { AIAssistantPanel } from './components/AIAssistant/AIAssistantPanel'
+import { MultiAgentDashboard } from './components/MultiAgentDashboard/MultiAgentDashboard'
 import { initializeSampleData } from './db'
 import styles from './App.module.css'
 
@@ -83,6 +84,7 @@ function App() {
       <TaskPanel />
       <div className={styles.aiAssistantContainer}>
         <AIAssistant />
+        <MultiAgentDashboard />
       </div>
     </div>
   )
