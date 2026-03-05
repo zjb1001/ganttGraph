@@ -8,9 +8,10 @@ import {
   useGanttAgent, 
   TaskRiskBadge, 
   AgentInsightPanel,
-  GanttAgentToolbar 
+  GanttAgentToolbar,
+  PredictivePanel,
+  BrakingPanel
 } from './GanttAgentOverlay'
-import { PredictivePanel } from './PredictivePanel'
 import styles from './GanttView.module.css'
 
 // 日期信息接口
@@ -947,6 +948,9 @@ export default function GanttView() {
       
       {/* Level 8-10: 预测与自主执行面板 */}
       <PredictivePanel />
+      
+      {/* 制动项目专用面板 */}
+      <BrakingPanel />
       
       <div className={`${styles.ganttView} ${resizePreview ? styles.ganttResizing : ''}`} ref={ganttRef}>
         {/* Agent 工具栏 */}

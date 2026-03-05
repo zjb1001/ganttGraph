@@ -301,3 +301,6 @@ export function GanttAgentToolbar() {
     </div>
   );
 }
+
+export { PredictivePanel } from './PredictivePanel';
+export { BrakingPanel } from './BrakingPanel';
