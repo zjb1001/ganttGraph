@@ -1,6 +1,11 @@
 {
   "current_level": 4,
-  "completed_features": [],
+  "completed_features": [
+    "\u98ce\u9669\u8bc4\u4f30\uff08\u57fa\u4e8e\u5386\u53f2\u6570\u636e\uff09",
+    "\u8d44\u6e90\u51b2\u7a81\u68c0\u6d4b",
+    "\u98ce\u9669\u8bc4\u4f30",
+    "\u667a\u80fd\u5efa\u8bae"
+  ],
   "next_features": [],
-  "last_update": "2026-03-05T21:35:50.809817"
+  "last_update": "2026-03-05T21:45:39.899086"
 }

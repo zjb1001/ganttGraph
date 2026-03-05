@@ -1,11 +1,11 @@
 /**
- * Gantt Agent - Level 1 + Level 2 + Level 3 完整实现
- * 基于 learn-claude-code 思想
+ * Gantt Agent - Level 1 + 2 + 3 + 4 完整实现
  */
 
 import { Task, GanttContext, AgentAction } from '@/types';
 import { TaskPlanner } from './TaskPlanner';
 import { ContextManager } from './ContextManager';
+import { IntelligenceEnhancer } from './IntelligenceEnhancer';
 
 interface Tool {
   name: string;
@@ -16,68 +16,67 @@ interface Tool {
 export class GanttAgent {
   private planner = new TaskPlanner();
   private contextManager = new ContextManager();
+  private enhancer = new IntelligenceEnhancer();
   
-  // 6个工具 + 3个上下文工具
   private tools: Tool[] = [
-    // Level 1: 基础
+    // Level 1
     {
       name: 'read_tasks',
-      description: '读取当前项目的所有任务',
-      execute: async (_, context) => context.tasks
+      description: '读取任务',
+      execute: async (_, ctx) => ctx.tasks
     },
     {
       name: 'create_task',
-      description: '创建新任务，参数: {title, startDate, duration, dependencies?}',
-      execute: async (params, context) => {
-        const newTask: Task = {
+      description: '创建任务',
+      execute: async (params, ctx) => {
+        const now = new Date();
+        const t: Task = {
           id: `task_${Date.now()}`,
+          projectId: ctx.projectId,
+          bucketId: 'default',
           title: params.title,
-          startDate: new Date(params.startDate),
-          dueDateTime: new Date(
-            new Date(params.startDate).getTime() + params.duration * 24 * 60 * 60 * 1000
-          ),
+          description: '',
+          taskType: 'task',
+          startDateTime: new Date(params.startDate),
+          dueDateTime: new Date(new Date(params.startDate).getTime() + params.duration * 24 * 60 * 60 * 1000),
           status: 'NotStarted',
+          priority: 'Normal',
           completedPercent: 0,
-          dependencies: params.dependencies || []
+          assigneeIds: [],
+          labelIds: [],
+          order: ctx.tasks.length,
+          dependencies: params.dependencies || [],
+          createdAt: now,
+          updatedAt: now
         };
-        context.tasks.push(newTask);
-        
-        // 记录历史
-        this.contextManager.recordHistory('create', `创建任务: ${params.title}`, newTask.id);
-        
-        return newTask;
+        ctx.tasks.push(t);
+        this.contextManager.recordHistory('create', `创建: ${t.title}`, t.id);
+        return t;
       }
     },
     {
       name: 'update_task',
-      description: '更新任务，参数: {taskId, updates}',
-      execute: async (params, context) => {
-        let task = context.tasks.find(t => t.id === params.taskId);
-        if (!task && /^\d+$/.test(params.taskId)) {
-          const index = parseInt(params.taskId);
-          if (index >= 0 && index < context.tasks.length) {
-            task = context.tasks[index];
-          }
+      description: '更新任务',
+      execute: async (params, ctx) => {
+        let t = ctx.tasks.find(x => x.id === params.taskId);
+        if (!t && /^\d+$/.test(params.taskId)) {
+          const i = parseInt(params.taskId);
+          if (i >= 0 && i < ctx.tasks.length) t = ctx.tasks[i];
         }
-        if (!task && context.tasks.length > 0) task = context.tasks[0];
-        if (!task) throw new Error('Task not found');
-        
-        const before = { ...task };
-        Object.assign(task, params.updates);
-        
-        // 记录历史
-        this.contextManager.recordHistory('update', `更新任务: ${task.title}`, task.id, before, task);
-        
-        return task;
+        if (!t && ctx.tasks.length > 0) t = ctx.tasks[0];
+        if (!t) throw new Error('Task not found');
+        Object.assign(t, params.updates);
+        this.contextManager.recordHistory('update', `更新: ${t.title}`, t.id);
+        return t;
       }
     },
-    // Level 2: 规划
+    // Level 2
     {
       name: 'analyze_dependencies',
-      description: '分析任务依赖关系，检测循环依赖',
-      execute: async (_, context) => {
-        const cycles = this.planner.analyzer.detectCircularDependency(context.tasks);
-        const graph = this.planner.analyzer.buildDependencyGraph(context.tasks);
+      description: '依赖分析',
+      execute: async (_, ctx) => {
+        const cycles = this.planner.analyzer.detectCircularDependency(ctx.tasks);
+        const graph = this.planner.analyzer.buildDependencyGraph(ctx.tasks);
         return {
           hasCycles: cycles.length > 0,
           cycles,
@@ -87,33 +86,25 @@ export class GanttAgent {
     },
     {
       name: 'auto_schedule',
-      description: '自动排期，基于依赖关系计算最优时间安排',
-      execute: async (params, context) => {
-        const start = params.startDate ? new Date(params.startDate) : new Date();
-        const result = this.planner.plan(context.tasks, start);
-        
-        if (result?.scheduledTasks) {
-          result.scheduledTasks.forEach(st => {
-            const t = context.tasks.find(x => x.id === st.id);
-            if (t) {
-              t.startDate = st.startDate;
-              t.dueDateTime = st.dueDateTime;
-            }
-          });
-        }
-        
-        // 记录历史
-        this.contextManager.recordHistory('schedule', '自动排期');
-        
-        return result;
+      description: '自动排期',
+      execute: async (params, ctx) => {
+        const r = this.planner.plan(ctx.tasks, params.startDate ? new Date(params.startDate) : new Date());
+        r.scheduledTasks?.forEach(st => {
+          const t = ctx.tasks.find(x => x.id === st.id);
+          if (t) { 
+            (t as any).startDate = st.startDate; 
+            t.dueDateTime = st.dueDateTime; 
+          }
+        });
+        return r;
       }
     },
     {
       name: 'check_risks',
-      description: '检查项目风险（延期、资源冲突）',
-      execute: async (_, context) => {
-        const delayRisks = this.planner.monitor.checkDelayRisks(context.tasks);
-        const resourceRisks = this.planner.monitor.checkResourceConflicts(context.tasks);
+      description: '风险检查',
+      execute: async (_, ctx) => {
+        const delayRisks = this.planner.monitor.checkDelayRisks(ctx.tasks);
+        const resourceRisks = this.planner.monitor.checkResourceConflicts(ctx.tasks);
         return {
           totalRisks: delayRisks.length + resourceRisks.length,
           delayRisks,
@@ -122,26 +113,23 @@ export class GanttAgent {
         };
       }
     },
-    // Level 3: 上下文管理
+    // Level 3
     {
       name: 'save_project',
-      description: '保存项目状态',
-      execute: async (_, context) => {
-        this.contextManager.saveProject(context);
+      description: '保存项目',
+      execute: async (_, ctx) => {
+        this.contextManager.saveProject(ctx);
         return { success: true, message: '项目已保存' };
       }
     },
     {
       name: 'load_project',
-      description: '加载项目状态',
-      execute: async (params) => {
-        const result = this.contextManager.loadProject(params.projectId);
-        return result || { success: false, message: '项目未找到' };
-      }
+      description: '加载项目',
+      execute: async (params) => this.contextManager.loadProject(params.projectId)
     },
     {
       name: 'query_history',
-      description: '查询历史操作记录',
+      description: '查询历史',
       execute: async (params) => {
         const history = this.contextManager.queryHistory(params.query || '');
         return { history, count: history.length };
@@ -149,204 +137,117 @@ export class GanttAgent {
     },
     {
       name: 'get_stats',
-      description: '获取对话统计信息',
-      execute: async () => {
-        return this.contextManager.getStats();
-      }
+      description: '统计信息',
+      execute: async () => this.contextManager.getStats()
+    },
+    // Level 4
+    {
+      name: 'assess_risks',
+      description: '全面风险评估',
+      execute: async (_, ctx) => this.enhancer.analyze(ctx.tasks, ctx).risk
+    },
+    {
+      name: 'optimize_resources',
+      description: '资源优化',
+      execute: async (_, ctx) => this.enhancer.analyze(ctx.tasks, ctx).resource
+    },
+    {
+      name: 'get_suggestions',
+      description: '智能建议',
+      execute: async (_, ctx) => ({
+        suggestions: this.enhancer.analyze(ctx.tasks, ctx).suggestions
+      })
+    },
+    {
+      name: 'quick_risk_check',
+      description: '快速风险检查',
+      execute: async (_, ctx) => this.enhancer.quickRiskCheck(ctx.tasks)
     }
   ];
 
-  /**
-   * 核心处理入口
-   */
   async process(userMessage: string, context: GanttContext): Promise<AgentAction> {
-    // Step 1: 检查是否有待处理的多轮对话
+    // 多轮对话检查
     if (this.contextManager.multiTurn.isWaitingForResponse()) {
-      const multiTurnResult = await this.contextManager.multiTurn.handleResponse(userMessage);
-      if (multiTurnResult.handled) {
-        const action: AgentAction = {
-          success: true,
-          message: multiTurnResult.message || '多轮对话已处理',
-          data: multiTurnResult.result
-        };
-        this.contextManager.recordTurn('agent', action.message, action);
-        return action;
-      }
+      const r = await this.contextManager.multiTurn.handleResponse(userMessage);
+      if (r.handled) return { success: true, message: r.message || '已处理', data: r.result };
     }
     
-    // Step 2: 记录用户输入
     this.contextManager.recordTurn('user', userMessage);
     
-    // Step 3: 理解意图
-    const intent = await this.understandIntent(userMessage);
-    
-    // Step 4: 选择并执行工具
-    const tool = this.selectTool(intent);
+    const intent = this.understandIntent(userMessage);
+    const tool = this.tools.find(t => t.name === intent.tool);
+    if (!tool) return { success: false, message: `未知工具: ${intent.tool}`, data: null };
     
     try {
       const result = await tool.execute(intent.params, context);
-      const action: AgentAction = { 
-        success: true, 
-        message: this.formatResultMessage(tool.name, result), 
-        data: result 
-      };
-      
-      // 记录Agent回复
-      this.contextManager.recordTurn('agent', action.message, action);
-      
-      return action;
-    } catch (error: any) {
-      const action: AgentAction = { 
-        success: false, 
-        message: `执行失败: ${error.message}`, 
-        data: null 
-      };
+      const action: AgentAction = { success: true, message: `${tool.name} 完成`, data: result };
       this.contextManager.recordTurn('agent', action.message, action);
       return action;
-    }
-  }
-  
-  /**
-   * 格式化结果消息
-   */
-  private formatResultMessage(toolName: string, result: any): string {
-    switch (toolName) {
-      case 'create_task':
-        return `已创建任务「${result.title}」`;
-      case 'update_task':
-        return `已更新任务「${result.title}」`;
-      case 'auto_schedule':
-        return `排期完成，总工期${result.totalDuration}天，关键路径包含${result.criticalPath.length}个任务`;
-      case 'check_risks':
-        return result.totalRisks > 0 
-          ? `发现${result.totalRisks}个风险${result.hasHighRisk ? '（含高危）' : ''}`
-          : '未发现明显风险';
-      case 'save_project':
-        return '项目已保存';
-      default:
-        return `已执行 ${toolName}`;
+    } catch (e: any) {
+      const action: AgentAction = { success: false, message: `失败: ${e.message}`, data: null };
+      this.contextManager.recordTurn('agent', action.message, action);
+      return action;
     }
   }
 
-  private async understandIntent(message: string) {
+  private understandIntent(message: string) {
     const m = message.toLowerCase();
     
-    // Level 1: 创建
-    if (m.includes('创建') || m.includes('新建') || m.includes('添加')) {
+    // Level 1
+    if (/创建|新建|添加/.test(m)) {
       const patterns = [
         /(?:叫|名为|是)\s*["']?([^"'，,\s]{2,20})["']?/,
-        /任务\s*["']?([^"'，,\s]{2,20})["']?(?:\s*[，,]|\s+\d+月|$)/,
-        /(?:创建|新建|添加)[^"'，,]*?["']?([^"'，,\s]{2,20})["']?(?:\s*[，,]|\s+\d+月|$)/
+        /任务\s*["']?([^"'，,\s]{2,20})["']?/,
+        /(?:创建|新建|添加)[^"'，,]*?["']?([^"'，,\s]{2,20})["']?/
       ];
-      
       let title = '新任务';
       for (const p of patterns) {
         const match = message.match(p);
-        if (match) {
-          title = match[1].trim().replace(/^(?:一个|任务|叫|名为|是)\s*/i, '');
-          if (title.length >= 2) break;
-        }
+        if (match) { title = match[1].trim().replace(/^(?:一个|任务|叫|名为|是)\s*/i, ''); break; }
       }
-      
       const dateMatch = message.match(/(\d{1,2})月(\d{1,2})日/);
       const durationMatch = message.match(/(\d+)[天|日]/);
-      
       return {
         tool: 'create_task',
         params: {
           title,
-          startDate: dateMatch 
-            ? `2026-${dateMatch[1].padStart(2, '0')}-${dateMatch[2].padStart(2, '0')}`
-            : new Date().toISOString().split('T')[0],
+          startDate: dateMatch ? `2026-${dateMatch[1].padStart(2, '0')}-${dateMatch[2].padStart(2, '0')}` : new Date().toISOString().split('T')[0],
           duration: durationMatch ? parseInt(durationMatch[1]) : 1
         }
       };
     }
     
-    // Level 1: 更新
-    if (m.includes('更新') || m.includes('修改') || m.includes('调整')) {
+    if (/更新|修改|调整/.test(m)) {
       const idMatch = message.match(/任务["']?(\w+)["']?/) || message.match(/第?\s*(\d+)\s*个/);
-      const statusMap: Record<string, string> = {
-        '进行中': 'InProgress', '已完成': 'Completed', '未开始': 'NotStarted', '暂停': 'OnHold'
-      };
+      const statusMap: Record<string, string> = { '进行中': 'InProgress', '已完成': 'Completed', '未开始': 'NotStarted' };
       const statusMatch = message.match(/状态\s*为?\s*(\S+)/);
-      
       return {
         tool: 'update_task',
-        params: {
-          taskId: idMatch ? idMatch[1] : '0',
-          updates: { status: statusMatch ? (statusMap[statusMatch[1]] || statusMatch[1]) : 'InProgress' }
-        }
+        params: { taskId: idMatch?.[1] || '0', updates: { status: statusMatch ? (statusMap[statusMatch[1]] || statusMatch[1]) : 'InProgress' } }
       };
     }
     
-    // Level 2: 依赖分析
-    if (m.includes('依赖') || m.includes('循环') || m.includes('关系')) {
-      return { tool: 'analyze_dependencies', params: {} };
-    }
+    // Level 4 (优先更具体的匹配 - 必须放在Level 2之前)
+    if (/全面|详细|深度/.test(m)) return { tool: 'assess_risks', params: {} };
+    if (/资源分析|资源优化/.test(m)) return { tool: 'optimize_resources', params: {} };
+    if (/建议|推荐|方案/.test(m)) return { tool: 'get_suggestions', params: {} };
+    if (/快速|概览/.test(m)) return { tool: 'quick_risk_check', params: {} };
     
-    // Level 2: 自动排期
-    if (m.includes('排期') || m.includes('调度') || m.includes('安排') || m.includes('计算时间')) {
-      const dateMatch = message.match(/从\s*(\d{4}-\d{2}-\d{2})/) || message.match(/(\d{4})年(\d{1,2})月/);
-      return {
-        tool: 'auto_schedule',
-        params: { startDate: dateMatch ? `${dateMatch[1]}-${dateMatch[2] || '01'}-01` : undefined }
-      };
-    }
+    // Level 2
+    if (/依赖|循环|关系/.test(m)) return { tool: 'analyze_dependencies', params: {} };
+    if (/排期|调度|安排/.test(m)) return { tool: 'auto_schedule', params: {} };
+    if (/风险|预警/.test(m)) return { tool: 'check_risks', params: {} };
     
-    // Level 2: 风险检查
-    if (m.includes('风险') || m.includes('预警') || m.includes('检查') || m.includes('问题')) {
-      return { tool: 'check_risks', params: {} };
-    }
+    // Level 3
+    if (/保存|存档/.test(m)) return { tool: 'save_project', params: {} };
+    if (/加载|读取/.test(m)) return { tool: 'load_project', params: {} };
+    if (/历史|记录|之前/.test(m)) return { tool: 'query_history', params: { query: message } };
+    if (/统计|信息|状态/.test(m)) return { tool: 'get_stats', params: {} };
     
-    // Level 3: 保存/加载
-    if (m.includes('保存') || m.includes('存档')) {
-      return { tool: 'save_project', params: {} };
-    }
-    
-    if (m.includes('加载') || m.includes('读取') || m.includes('打开')) {
-      const idMatch = message.match(/项目["']?(\w+)["']?/);
-      return { tool: 'load_project', params: { projectId: idMatch?.[1] || context.projectId } };
-    }
-    
-    // Level 3: 查询历史
-    if (m.includes('历史') || m.includes('记录') || m.includes('查询') || m.includes('之前')) {
-      return { tool: 'query_history', params: { query: message } };
-    }
-    
-    // Level 3: 统计
-    if (m.includes('统计') || m.includes('信息') || m.includes('状态')) {
-      return { tool: 'get_stats', params: {} };
-    }
-    
-    // 默认：读取
     return { tool: 'read_tasks', params: {} };
   }
 
-  private selectTool(intent: { tool: string }) {
-    const tool = this.tools.find(t => t.name === intent.tool);
-    if (!tool) throw new Error(`Unknown tool: ${intent.tool}`);
-    return tool;
-  }
-  
-  /**
-   * Level 3: 获取上下文管理器
-   */
-  getContextManager(): ContextManager {
-    return this.contextManager;
-  }
-  
-  /**
-   * Level 3: 获取对话统计
-   */
-  getStats() {
-    return this.contextManager.getStats();
-  }
-  
-  /**
-   * Level 3: 导出完整状态
-   */
-  exportState(context: GanttContext): string {
-    return this.contextManager.exportFullState(context);
-  }
+  getContextManager() { return this.contextManager; }
+  getStats() { return this.contextManager.getStats(); }
+  exportState(ctx: GanttContext) { return this.contextManager.exportFullState(ctx); }
 }

@@ -115,6 +115,20 @@ export interface Task {
 // 视图类型
 export type ViewType = 'gantt' | 'board' | 'list'
 
+// Agent 类型定义
+export interface GanttContext {
+  projectId: string;
+  tasks: Task[];
+  buckets?: Bucket[];
+  planner?: any;
+}
+
+export interface AgentAction {
+  success: boolean;
+  message: string;
+  data?: any;
+}
+
 // 应用状态
 export interface AppState {
   currentProjectId: string | null

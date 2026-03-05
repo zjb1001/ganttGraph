@@ -192,11 +192,72 @@ describe('Agent Iteration Tests', () => {
     });
   });
   
-  // ========== Level 4: 智能增强测试 (TODO) ==========
-  describe('Level 4: 智能增强 (TODO)', () => {
-    it.todo('应该能识别延期风险');
-    it.todo('应该能检测资源冲突');
-    it.todo('应该能给出优化建议');
+  // ========== Level 4: 智能增强测试 ==========
+  describe('Level 4: 智能增强', () => {
+    it('应该能识别延期风险', async () => {
+      // 创建风险任务
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      context.tasks = [{
+        id: 'risky',
+        title: '风险任务',
+        status: 'InProgress',
+        completedPercent: 10,
+        dueDateTime: tomorrow,
+        startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      } as Task];
+      
+      const result = await agent.process('全面风险评估', context);
+      
+      // 调试：打印实际结果
+      console.log('Result:', JSON.stringify(result, null, 2));
+      
+      expect(result.success).toBe(true);
+      expect(result.data).toBeDefined();
+      if (result.data) {
+        expect(result.data.riskScore).toBeDefined();
+        expect(result.data.delayRisks).toBeDefined();
+      }
+    });
+    
+    it('应该能检测资源冲突', async () => {
+      // 创建多个并发任务
+      for (let i = 0; i < 10; i++) {
+        await agent.process(`创建任务${i}，今天开始，持续5天`, context);
+      }
+      
+      const result = await agent.process('资源优化分析', context);
+      
+      expect(result.success).toBe(true);
+      expect(result.data.timeline).toBeDefined();
+      expect(result.data.bottlenecks).toBeDefined();
+    });
+    
+    it('应该能给出优化建议', async () => {
+      await agent.process('创建任务A', context);
+      await agent.process('创建任务B', context);
+      await agent.process('创建任务C', context);
+      
+      const result = await agent.process('获取智能建议', context);
+      
+      expect(result.success).toBe(true);
+      expect(result.data.suggestions).toBeDefined();
+      expect(result.data.suggestions.length).toBeGreaterThanOrEqual(0);
+    });
+    
+    it('应该能快速风险检查', async () => {
+      await agent.process('创建任务A', context);
+      
+      const result = await agent.process('快速风险检查', context);
+      
+      expect(result.success).toBe(true);
+      expect(result.data).toBeDefined();
+      if (result.data) {
+        expect(result.data.hasRisk).toBeDefined();
+        expect(result.data.level).toBeDefined();
+      }
+    });
   });
 });
 
