@@ -1,10 +1,11 @@
 /**
- * Agent 迭代测试用例
- * 用于验证每个迭代级别
+ * Agent 迭代测试用例 - Level 1 + Level 2
  */
 
+import { describe, it, expect, beforeEach } from 'vitest';
 import { GanttAgent } from '../SimpleGanttAgent';
-import { GanttContext } from '@/types';
+import { TaskPlanner } from '../TaskPlanner';
+import { GanttContext, Task } from '@/types';
 
 describe('Agent Iteration Tests', () => {
   let agent: GanttAgent;
@@ -21,7 +22,7 @@ describe('Agent Iteration Tests', () => {
   
   // ========== Level 1: 基础对话测试 ==========
   describe('Level 1: 基础对话', () => {
-    test('应该能创建任务', async () => {
+    it('应该能创建任务', async () => {
       const result = await agent.process(
         '创建一个任务叫设计评审，3月10日开始，持续3天',
         context
@@ -32,8 +33,7 @@ describe('Agent Iteration Tests', () => {
       expect(context.tasks[0].title).toBe('设计评审');
     });
     
-    test('应该能读取任务列表', async () => {
-      // 先创建一个任务
+    it('应该能读取任务列表', async () => {
       await agent.process('创建任务A', context);
       
       const result = await agent.process('查看所有任务', context);
@@ -41,13 +41,11 @@ describe('Agent Iteration Tests', () => {
       expect(result.data).toHaveLength(1);
     });
     
-    test('应该能更新任务', async () => {
-      // 创建并更新
+    it('应该能更新任务', async () => {
       await agent.process('创建任务B', context);
-      const taskId = context.tasks[0].id;
       
       const result = await agent.process(
-        `更新任务${taskId}状态为进行中`,
+        '更新第0个任务状态为进行中',
         context
       );
       
@@ -56,63 +54,148 @@ describe('Agent Iteration Tests', () => {
     });
   });
   
-  // ========== Level 2: 任务规划测试 (待实现) ==========
-  describe('Level 2: 任务规划 (TODO)', () => {
-    test.todo('应该能识别任务依赖');
-    test.todo('应该能自动排期');
-    test.todo('应该能计算关键路径');
+  // ========== Level 2: 任务规划测试 ==========
+  describe('Level 2: 任务规划', () => {
+    it('应该能分析依赖关系', async () => {
+      // 创建任务A
+      await agent.process('创建任务A，3月1日开始，持续2天', context);
+      const taskAId = context.tasks[0].id;  // 获取实际ID
+      
+      // 手动添加带依赖的任务B
+      context.tasks.push({
+        id: 'task_B',
+        title: '任务B',
+        startDate: new Date('2026-03-03'),
+        dueDateTime: new Date('2026-03-06'),
+        status: 'NotStarted',
+        completedPercent: 0,
+        dependencies: [taskAId]  // 使用实际ID
+      } as Task);
+      
+      const result = await agent.process('分析任务依赖', context);
+      
+      expect(result.success).toBe(true);
+      expect(result.data.hasCycles).toBe(false);
+      expect(result.data.totalDependencies).toBeGreaterThan(0);
+    });
+    
+    it('应该能检测循环依赖', async () => {
+      // 手动创建循环依赖
+      context.tasks = [
+        { id: 'A', title: '任务A', dependencies: ['B'], status: 'NotStarted' } as Task,
+        { id: 'B', title: '任务B', dependencies: ['A'], status: 'NotStarted' } as Task
+      ];
+      
+      const result = await agent.process('检查依赖关系', context);
+      
+      expect(result.success).toBe(true);
+      expect(result.data.hasCycles).toBe(true);
+    });
+    
+    it('应该能自动排期', async () => {
+      // 创建有依赖的任务
+      await agent.process('创建任务A，3月1日开始，持续2天', context);
+      await agent.process('创建任务B，依赖任务A，持续3天', context);
+      
+      const result = await agent.process('自动排期', context);
+      
+      expect(result.success).toBe(true);
+      expect(result.data.scheduledTasks).toBeDefined();
+      expect(result.data.criticalPath).toBeDefined();
+      expect(result.data.totalDuration).toBeGreaterThan(0);
+    });
+    
+    it('应该能检查风险', async () => {
+      // 创建一个即将到期且进度落后的任务
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(23, 59, 59, 999);
+      
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 5);
+      
+      context.tasks = [{
+        id: 'risky',
+        title: '风险任务',
+        status: 'InProgress',
+        completedPercent: 10,  // 仅10%进度
+        dueDateTime: tomorrow,  // 明天到期
+        startDate: yesterday    // 已进行5天
+      } as Task];
+      
+      const result = await agent.process('检查风险', context);
+      
+      expect(result.success).toBe(true);
+      expect(result.data.totalRisks).toBeGreaterThan(0);
+    });
   });
   
-  // ========== Level 3: 上下文管理测试 (待实现) ==========
+  // ========== Level 3: 上下文管理测试 (TODO) ==========
   describe('Level 3: 上下文管理 (TODO)', () => {
-    test.todo('应该能处理10轮以上对话');
-    test.todo('应该能保存项目状态');
-    test.todo('应该能恢复项目状态');
+    it.todo('应该能处理10轮以上对话');
+    it.todo('应该能保存项目状态');
+    it.todo('应该能恢复项目状态');
   });
   
-  // ========== Level 4: 智能增强测试 (待实现) ==========
+  // ========== Level 4: 智能增强测试 (TODO) ==========
   describe('Level 4: 智能增强 (TODO)', () => {
-    test.todo('应该能识别延期风险');
-    test.todo('应该能检测资源冲突');
-    test.todo('应该能给出优化建议');
+    it.todo('应该能识别延期风险');
+    it.todo('应该能检测资源冲突');
+    it.todo('应该能给出优化建议');
   });
 });
 
-// 手动测试脚本
-export async function runManualTests() {
-  console.log('🧪 运行 Agent 手动测试\n');
+// TaskPlanner 单元测试
+describe('TaskPlanner Unit Tests', () => {
+  let planner: TaskPlanner;
   
-  const agent = new GanttAgent();
-  const context: GanttContext = {
-    projectId: 'demo',
-    tasks: [],
-    buckets: []
-  };
+  beforeEach(() => {
+    planner = new TaskPlanner();
+  });
   
-  // Test 1: 创建任务
-  console.log('Test 1: 创建任务');
-  const result1 = await agent.process(
-    '创建一个任务叫设计评审，3月10日开始，持续3天',
-    context
-  );
-  console.log('结果:', result1.success ? '✅ 通过' : '❌ 失败');
-  console.log('任务:', context.tasks[0]);
+  it('应该正确检测循环依赖', () => {
+    const tasks = [
+      { id: 'A', title: 'A', dependencies: ['B'] } as Task,
+      { id: 'B', title: 'B', dependencies: ['C'] } as Task,
+      { id: 'C', title: 'C', dependencies: ['A'] } as Task
+    ];
+    
+    const cycles = planner.analyzer.detectCircularDependency(tasks);
+    expect(cycles.length).toBeGreaterThan(0);
+  });
   
-  // Test 2: 读取任务
-  console.log('\nTest 2: 读取任务');
-  const result2 = await agent.process('查看所有任务', context);
-  console.log('结果:', result2.success ? '✅ 通过' : '❌ 失败');
+  it('应该正确拓扑排序', () => {
+    const tasks = [
+      { id: 'A', title: 'A', dependencies: [] } as Task,
+      { id: 'B', title: 'B', dependencies: ['A'] } as Task,
+      { id: 'C', title: 'C', dependencies: ['A'] } as Task
+    ];
+    
+    const sorted = planner.scheduler.topologicalSort(tasks);
+    expect(sorted[0].id).toBe('A');
+  });
   
-  // Test 3: 边界情况
-  console.log('\nTest 3: 模糊指令');
-  const result3 = await agent.process('帮我看看有哪些任务', context);
-  console.log('结果:', result3.success ? '✅ 通过' : '❌ 失败');
-  
-  console.log('\n📊 测试完成');
-  console.log(`当前任务数: ${context.tasks.length}`);
-}
-
-// 如果直接运行此文件
-if (typeof window === 'undefined') {
-  runManualTests();
-}
+  it('应该计算关键路径', () => {
+    const startDate = new Date('2026-03-01');
+    const tasks = [
+      { 
+        id: 'A', 
+        title: 'A', 
+        dependencies: [],
+        startDate: new Date('2026-03-01'),
+        dueDateTime: new Date('2026-03-03')
+      } as Task,
+      { 
+        id: 'B', 
+        title: 'B', 
+        dependencies: ['A'],
+        startDate: new Date('2026-03-03'),
+        dueDateTime: new Date('2026-03-06')
+      } as Task
+    ];
+    
+    const result = planner.plan(tasks, startDate);
+    expect(result.criticalPath.length).toBeGreaterThan(0);
+    expect(result.totalDuration).toBeGreaterThan(0);
+  });
+});

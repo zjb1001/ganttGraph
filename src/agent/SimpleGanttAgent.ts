@@ -1,28 +1,27 @@
 /**
- * Gantt Agent - 简化版核心实现
+ * Gantt Agent - Level 1 + Level 2 完整实现
  * 基于 learn-claude-code 思想
- * 阶段1: MVP (3个核心能力)
  */
 
 import { Task, GanttContext, AgentAction } from '@/types';
+import { TaskPlanner } from './TaskPlanner';
 
-// 核心工具接口
 interface Tool {
   name: string;
   description: string;
   execute: (params: any, context: GanttContext) => Promise<any>;
 }
 
-// 简化版 Agent
 export class GanttAgent {
-  // 只保留3个核心工具
+  private planner = new TaskPlanner();
+  
+  // 6个工具：3个基础 + 3个规划
   private tools: Tool[] = [
+    // Level 1: 基础
     {
       name: 'read_tasks',
       description: '读取当前项目的所有任务',
-      execute: async (_, context) => {
-        return context.tasks;
-      }
+      execute: async (_, context) => context.tasks
     },
     {
       name: 'create_task',
@@ -47,87 +46,96 @@ export class GanttAgent {
       name: 'update_task',
       description: '更新任务，参数: {taskId, updates}',
       execute: async (params, context) => {
-        let task;
-        
-        // 先尝试通过ID查找
-        task = context.tasks.find(t => t.id === params.taskId);
-        
-        // 如果没找到，尝试通过索引查找（如果taskId是数字）
+        let task = context.tasks.find(t => t.id === params.taskId);
         if (!task && /^\d+$/.test(params.taskId)) {
           const index = parseInt(params.taskId);
           if (index >= 0 && index < context.tasks.length) {
             task = context.tasks[index];
           }
         }
-        
-        // 如果还是没找到，默认更新第一个任务
-        if (!task && context.tasks.length > 0) {
-          task = context.tasks[0];
-        }
-        
+        if (!task && context.tasks.length > 0) task = context.tasks[0];
         if (!task) throw new Error('Task not found');
         Object.assign(task, params.updates);
         return task;
       }
+    },
+    // Level 2: 规划
+    {
+      name: 'analyze_dependencies',
+      description: '分析任务依赖关系，检测循环依赖',
+      execute: async (_, context) => {
+        const cycles = this.planner.analyzer.detectCircularDependency(context.tasks);
+        const graph = this.planner.analyzer.buildDependencyGraph(context.tasks);
+        return {
+          hasCycles: cycles.length > 0,
+          cycles,
+          totalDependencies: Array.from(graph.values()).reduce((sum, d) => sum + d.size, 0)
+        };
+      }
+    },
+    {
+      name: 'auto_schedule',
+      description: '自动排期，基于依赖关系计算最优时间安排',
+      execute: async (params, context) => {
+        const start = params.startDate ? new Date(params.startDate) : new Date();
+        const result = this.planner.plan(context.tasks, start);
+        
+        if (result?.scheduledTasks) {
+          result.scheduledTasks.forEach(st => {
+            const t = context.tasks.find(x => x.id === st.id);
+            if (t) {
+              t.startDate = st.startDate;
+              t.dueDateTime = st.dueDateTime;
+            }
+          });
+        }
+        return result;
+      }
+    },
+    {
+      name: 'check_risks',
+      description: '检查项目风险（延期、资源冲突）',
+      execute: async (_, context) => {
+        const delayRisks = this.planner.monitor.checkDelayRisks(context.tasks);
+        const resourceRisks = this.planner.monitor.checkResourceConflicts(context.tasks);
+        return {
+          totalRisks: delayRisks.length + resourceRisks.length,
+          delayRisks,
+          resourceRisks,
+          hasHighRisk: [...delayRisks, ...resourceRisks].some(r => r.severity === 'high')
+        };
+      }
     }
   ];
 
-  /**
-   * 核心 Agent Loop
-   * 观察 → 思考 → 行动
-   */
   async process(userMessage: string, context: GanttContext): Promise<AgentAction> {
-    // Step 1: 观察 - 理解用户意图
     const intent = await this.understandIntent(userMessage);
-    
-    // Step 2: 思考 - 选择工具
     const tool = this.selectTool(intent);
     
-    // Step 3: 行动 - 执行
     try {
       const result = await tool.execute(intent.params, context);
-      return {
-        success: true,
-        message: `已执行 ${tool.name}`,
-        data: result
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: `执行失败: ${error.message}`,
-        data: null
-      };
+      return { success: true, message: `已执行 ${tool.name}`, data: result };
+    } catch (error: any) {
+      return { success: false, message: `执行失败: ${error.message}`, data: null };
     }
   }
 
-  /**
-   * 理解意图 - 简化版，基于关键词匹配
-   * 后续迭代可升级为 LLM 意图识别
-   */
-  private async understandIntent(message: string): Promise<{
-    tool: string;
-    params: any;
-  }> {
-    const lowerMsg = message.toLowerCase();
+  private async understandIntent(message: string) {
+    const m = message.toLowerCase();
     
-    // 创建任务意图
-    if (lowerMsg.includes('创建') || lowerMsg.includes('新建') || lowerMsg.includes('添加')) {
-      // 提取标题：匹配"叫xxx"、"名为xxx"、"是xxx"或直接提取第一个名词短语
-      let title = '新任务';
-      
-      // 尝试各种匹配模式
+    // Level 1: 创建
+    if (m.includes('创建') || m.includes('新建') || m.includes('添加')) {
       const patterns = [
         /(?:叫|名为|是)\s*["']?([^"'，,\s]{2,20})["']?/,
         /任务\s*["']?([^"'，,\s]{2,20})["']?(?:\s*[，,]|\s+\d+月|$)/,
         /(?:创建|新建|添加)[^"'，,]*?["']?([^"'，,\s]{2,20})["']?(?:\s*[，,]|\s+\d+月|$)/
       ];
       
-      for (const pattern of patterns) {
-        const match = message.match(pattern);
+      let title = '新任务';
+      for (const p of patterns) {
+        const match = message.match(p);
         if (match) {
-          title = match[1].trim();
-          // 移除常见前缀
-          title = title.replace(/^(?:一个|任务|叫|名为|是)\s*/i, '');
+          title = match[1].trim().replace(/^(?:一个|任务|叫|名为|是)\s*/i, '');
           if (title.length >= 2) break;
         }
       }
@@ -138,7 +146,7 @@ export class GanttAgent {
       return {
         tool: 'create_task',
         params: {
-          title: title,
+          title,
           startDate: dateMatch 
             ? `2026-${dateMatch[1].padStart(2, '0')}-${dateMatch[2].padStart(2, '0')}`
             : new Date().toISOString().split('T')[0],
@@ -147,65 +155,49 @@ export class GanttAgent {
       };
     }
     
-    // 更新任务意图
-    if (lowerMsg.includes('更新') || lowerMsg.includes('修改') || lowerMsg.includes('调整')) {
-      // 尝试提取任务ID或索引
+    // Level 1: 更新
+    if (m.includes('更新') || m.includes('修改') || m.includes('调整')) {
       const idMatch = message.match(/任务["']?(\w+)["']?/) || message.match(/第?\s*(\d+)\s*个/);
-      
-      // 状态映射：中文->英文
-      const statusMap: { [key: string]: string } = {
-        '进行中': 'InProgress',
-        '已完成': 'Completed',
-        '未开始': 'NotStarted',
-        '暂停': 'OnHold'
+      const statusMap: Record<string, string> = {
+        '进行中': 'InProgress', '已完成': 'Completed', '未开始': 'NotStarted', '暂停': 'OnHold'
       };
-      
-      let status = 'InProgress';
       const statusMatch = message.match(/状态\s*为?\s*(\S+)/);
-      if (statusMatch) {
-        status = statusMap[statusMatch[1]] || statusMatch[1];
-      }
       
       return {
         tool: 'update_task',
         params: {
           taskId: idMatch ? idMatch[1] : '0',
-          updates: { status }
+          updates: { status: statusMatch ? (statusMap[statusMatch[1]] || statusMatch[1]) : 'InProgress' }
         }
       };
     }
     
-    // 默认：读取任务
-    return {
-      tool: 'read_tasks',
-      params: {}
-    };
+    // Level 2: 依赖分析
+    if (m.includes('依赖') || m.includes('循环') || m.includes('关系')) {
+      return { tool: 'analyze_dependencies', params: {} };
+    }
+    
+    // Level 2: 自动排期
+    if (m.includes('排期') || m.includes('调度') || m.includes('安排') || m.includes('计算时间')) {
+      const dateMatch = message.match(/从\s*(\d{4}-\d{2}-\d{2})/) || message.match(/(\d{4})年(\d{1,2})月/);
+      return {
+        tool: 'auto_schedule',
+        params: { startDate: dateMatch ? `${dateMatch[1]}-${dateMatch[2] || '01'}-01` : undefined }
+      };
+    }
+    
+    // Level 2: 风险检查
+    if (m.includes('风险') || m.includes('预警') || m.includes('检查') || m.includes('问题')) {
+      return { tool: 'check_risks', params: {} };
+    }
+    
+    // 默认：读取
+    return { tool: 'read_tasks', params: {} };
   }
 
-  /**
-   * 选择工具
-   */
-  private selectTool(intent: { tool: string }): Tool {
+  private selectTool(intent: { tool: string }) {
     const tool = this.tools.find(t => t.name === intent.tool);
     if (!tool) throw new Error(`Unknown tool: ${intent.tool}`);
     return tool;
   }
-}
-
-// 使用示例
-export async function demo() {
-  const agent = new GanttAgent();
-  const context: GanttContext = {
-    projectId: 'demo',
-    tasks: [],
-    buckets: []
-  };
-  
-  // 测试创建任务
-  const result = await agent.process(
-    '创建一个任务叫设计评审，3月10日开始，持续3天',
-    context
-  );
-  
-  console.log(result);
 }
