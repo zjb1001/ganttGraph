@@ -11,6 +11,7 @@ import {
   decomposeProject,
   analyzeProjectRisks,
   predictSchedule,
+  chatWithAI,
   type DecomposeResponse,
   type RiskAnalysisResponse,
   type SchedulePredictionResponse
@@ -93,7 +94,7 @@ export default function AIAssistantView() {
     <div className={styles.aiView}>
       <div className={styles.tabNav}>
         <div className={styles.tabNavHeader}>
-          <h2>🤖 AI 助手</h2>
+          <h2>✨ AI 助手</h2>
         </div>
         {tabs.map((tab) => (
           <button
@@ -171,15 +172,38 @@ function ChatTab() {
     setIsProcessing(true);
     try {
       const projectName = getCurrentProjectName();
-      const response: AgentResponse = await sendChatMessage({
-        message: userMessage,
-        context: {
-          currentProject: projectName ?? undefined,
-          currentProjectId: currentProjectId ?? undefined,
-          buckets: buckets.map(b => ({ id: b.id, name: b.name, color: b.color, bucketType: b.bucketType })),
-          tasks: getTasksContext(), taskCount: tasks.length, bucketCount: buckets.length
+      let response: AgentResponse;
+      try {
+        // Try v1 API first
+        response = await sendChatMessage({
+          message: userMessage,
+          context: {
+            currentProject: projectName ?? undefined,
+            currentProjectId: currentProjectId ?? undefined,
+            buckets: buckets.map(b => ({ id: b.id, name: b.name, color: b.color, bucketType: b.bucketType })),
+            tasks: getTasksContext(), taskCount: tasks.length, bucketCount: buckets.length
+          }
+        });
+        // If v1 returned connection failure, try v2
+        if (!response.success && response.message.includes('无法连接')) {
+          throw new Error('v1 unavailable');
         }
-      });
+      } catch {
+        // Fallback to v2 API
+        const v2Response = await chatWithAI(userMessage, {
+          tasks,
+          buckets,
+          currentProject: projectName ?? undefined
+        });
+        response = {
+          success: v2Response.success,
+          message: v2Response.message,
+          actions: v2Response.actions,
+          needs_clarification: false,
+          clarification_questions: [],
+          requiresConfirmation: v2Response.actions?.some(a => a.requiresConfirmation)
+        };
+      }
       if (!response.success) {
         setMessages(prev => [...prev, { role: 'assistant', content: response.message, timestamp: new Date() }]);
         setIsProcessing(false);
@@ -242,8 +266,8 @@ function ChatTab() {
   };
 
   const exampleCommands = [
-    { icon: '📋', text: '添加一个任务叫「API开发」，下周一开始，持续5天' },
-    { icon: '📊', text: '把API开发进度改成50%' },
+    { icon: '�', text: '添加一个任务叫「API开发」，下周一开始，持续5天' },
+    { icon: '📈', text: '把API开发进度改成50%' },
     { icon: '🎯', text: '创建一个里程碑叫「项目发布」在3月15日' },
     { icon: '📁', text: '创建里程碑分组叫「发布计划」' },
     { icon: '🔄', text: '将开发分组中的任务全部推迟2周' },
@@ -276,6 +300,7 @@ function ChatTab() {
         )}
         {messages.map((msg, idx) => (
           <div key={idx} className={`${styles.chatMessage} ${msg.role === 'user' ? styles.chatMessageUser : styles.chatMessageAssistant}`}>
+            {msg.role === 'assistant' && <div className={styles.chatAvatar} title="AI 助手">�</div>}
             <div className={styles.chatBubble}>
               <div>{renderContent(msg.content)}</div>
               {msg.pendingActions && (
@@ -293,10 +318,12 @@ function ChatTab() {
               )}
               <div className={styles.chatTime}>{msg.timestamp.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</div>
             </div>
+            {msg.role === 'user' && <div className={styles.chatAvatar} title="你">👤</div>}
           </div>
         ))}
         {isProcessing && (
           <div className={`${styles.chatMessage} ${styles.chatMessageAssistant}`}>
+            <div className={styles.chatAvatar}>�</div>
             <div className={styles.chatBubble}>
               <div className={styles.chatTyping}><span /><span /><span /></div>
               正在思考...
@@ -606,8 +633,8 @@ function MultiAgentTab() {
   }, [collabManager]);
 
   const getRoleIcon = (role: string) => {
-    const icons: Record<string, string> = { 'project-manager': '👔', 'developer': '💻', 'tester': '🔍', 'resource-scheduler': '📊', 'risk-monitor': '⚠️' };
-    return icons[role] || '🤖';
+    const icons: Record<string, string> = { 'project-manager': '👔', 'developer': '💻', 'tester': '🔍', 'resource-scheduler': '�', 'risk-monitor': '🛡️' };
+    return icons[role] || '🔧';
   };
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = { 'idle': '#9ca3af', 'working': '#22c55e', 'blocked': '#ef4444', 'offline': '#6b7280' };
@@ -632,10 +659,10 @@ function MultiAgentTab() {
 
       <div className={styles.multiAgentTabs}>
         {[
-          { id: 'overview' as const, label: '📊 概览' },
+          { id: 'overview' as const, label: '🏠 概览' },
           { id: 'team' as const, label: '👥 团队' },
           { id: 'delays' as const, label: `🚨 延期${delays.length > 0 ? ` (${delays.length})` : ''}` },
-          { id: 'messages' as const, label: '💬 消息' },
+          { id: 'messages' as const, label: '📨 消息' },
         ].map(t => (
           <button key={t.id} className={`${styles.multiAgentTabBtn} ${subTab === t.id ? styles.active : ''}`} onClick={() => setSubTab(t.id)}>
             {t.label}
@@ -734,7 +761,7 @@ function MultiAgentTab() {
 
         {subTab === 'messages' && (
           messages.length === 0 ? (
-            <div className={styles.emptyState}><div className={styles.emptyIcon}>💬</div><div className={styles.emptyText}>暂无消息</div></div>
+            <div className={styles.emptyState}><div className={styles.emptyIcon}>�</div><div className={styles.emptyText}>暂无消息</div></div>
           ) : (
             messages.map(msg => (
               <div key={msg.id} className={styles.messageItem}>

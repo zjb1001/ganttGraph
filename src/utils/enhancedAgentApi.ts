@@ -11,7 +11,8 @@
 
 import type { Task, Bucket } from '@/types';
 
-const AI_SERVICE_URL = import.meta.env.VITE_AI_SERVICE_URL || 'http://localhost:8000';
+// Use the same base URL as v1 — both served by one backend
+const AI_SERVICE_URL = import.meta.env.VITE_AGENT_SERVICE_URL || 'http://localhost:8000';
 
 // ===============================
 // Types
