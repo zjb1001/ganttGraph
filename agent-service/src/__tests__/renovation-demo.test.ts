@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { GanttAgent } from '../SimpleGanttAgent';
-import { GanttContext } from '../../types';
+import { GanttContext } from '@/types';
 
 describe('🏠 旧房改造项目演示', () => {
   let agent: GanttAgent;

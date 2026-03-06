@@ -9,7 +9,8 @@ export default function Header() {
   const views = [
     { id: 'gantt' as const, name: '甘特图', icon: '📊' },
     { id: 'board' as const, name: '看板', icon: '📋' },
-    { id: 'list' as const, name: '列表', icon: '📝' }
+    { id: 'list' as const, name: '列表', icon: '📝' },
+    { id: 'ai' as const, name: 'AI助手', icon: '🤖' }
   ]
 
   return (

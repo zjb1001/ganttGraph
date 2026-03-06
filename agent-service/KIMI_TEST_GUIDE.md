@@ -38,7 +38,7 @@ python3 enhanced_ai_service.py
 
 ```bash
 # 在另一个终端窗口运行
-python3 test_ai_features.py
+python3 tests/test_ai_features.py
 ```
 
 ## 🧪 测试内容

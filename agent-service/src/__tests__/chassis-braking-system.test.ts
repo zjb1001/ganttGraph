@@ -15,7 +15,7 @@ import {
   RiskMonitorAgent
 } from '../SpecializedAgents';
 import { goalPlanner } from '../GoalDrivenPlanner';
-import { GanttContext } from '../../types';
+import { GanttContext } from '@/types';
 
 describe('🚗 底盘制动器开发项目 - Level 6-7 完整测试', () => {
   

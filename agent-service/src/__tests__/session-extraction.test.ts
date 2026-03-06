@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { GanttAgent } from '../SimpleGanttAgent';
-import { GanttContext } from '../../types';
+import { GanttContext } from '@/types';
 
 describe('📜 Agent 会话过程提取', () => {
   it('提取旧房改造项目完整会话过程', async () => {

@@ -16,7 +16,7 @@ import {
   ResourceSchedulerAgent,
   RiskMonitorAgent
 } from '../SpecializedAgents';
-import { GanttContext } from '../../types';
+import { GanttContext } from '@/types';
 
 describe('🤝 Level 7: 多智能体协作系统', () => {
   let bus: typeof globalMessageBus;

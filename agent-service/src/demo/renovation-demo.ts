@@ -4,7 +4,7 @@
  */
 
 import { GanttAgent } from '../SimpleGanttAgent';
-import { GanttContext } from '../../types';
+import { GanttContext } from '@/types';
 
 async function runRenovationDemo() {
   console.log('🏠 旧房改造项目 - Agent 演示\n');

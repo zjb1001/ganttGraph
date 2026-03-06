@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { GanttAgent } from '../SimpleGanttAgent';
 import { adaptiveEngine } from '../AdaptiveAdjustmentEngine';
-import { GanttContext } from '../../types';
+import { GanttContext } from '@/types';
 
 describe('⚡ Level 6: 实时自适应调整系统', () => {
   

@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { GanttAgent } from '../SimpleGanttAgent';
 import { ganttRenderer } from '../GanttRenderer';
-import { GanttContext } from '../../types';
+import { GanttContext } from '@/types';
 
 describe('🎨 Level 6: 多模态交互与可视化', () => {
   

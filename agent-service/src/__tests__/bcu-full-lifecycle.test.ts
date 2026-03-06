@@ -8,7 +8,7 @@ import { goalPlanner } from '../GoalDrivenPlanner';
 import { feedbackAnalyzer } from '../ProjectFeedbackAnalyzer';
 import { ECUDevelopmentTemplate } from '../ECUFullLifecycleTemplate';
 import { GanttAgent } from '../SimpleGanttAgent';
-import { GanttContext } from '../../types';
+import { GanttContext } from '@/types';
 
 describe('🚗 车身控制器完整开发流程 (含Agent反馈)', () => {
   
