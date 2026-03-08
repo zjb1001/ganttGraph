@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { goalPlanner, ProjectTemplates } from '../GoalDrivenPlanner';
 import { GanttAgent } from '../SimpleGanttAgent';
-import { GanttContext } from '../../types';
+import { GanttContext } from '@/types';
 
 describe('🚀 Level 5: 目标驱动自主规划', () => {
   

@@ -11,7 +11,8 @@
 
 import type { Task, Bucket } from '@/types';
 
-const AI_SERVICE_URL = import.meta.env.VITE_AI_SERVICE_URL || 'http://localhost:8000';
+// Use the same base URL as v1 — both served by one backend
+const AI_SERVICE_URL = import.meta.env.VITE_AGENT_SERVICE_URL || 'http://localhost:8000';
 
 // ===============================
 // Types
@@ -390,64 +391,3 @@ export function getRiskLevelText(level: string): string {
   }
 }
 
-// ===============================
-// Hook for React Components
-// ===============================
-
-import { useState, useCallback } from 'react';
-
-export function useAIAssistant() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const withLoading = useCallback(async <T,>(fn: () => Promise<T>): Promise<T | null> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await fn();
-      return result;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const decompose = useCallback((goal: string, options?: any) => 
-    withLoading(() => decomposeProject(goal, options)), [withLoading]);
-
-  const analyzeRisks = useCallback((tasks: Task[], options?: any) => 
-    withLoading(() => analyzeProjectRisks(tasks, options)), [withLoading]);
-
-  const predict = useCallback((tasks: Task[]) => 
-    withLoading(() => predictSchedule(tasks)), [withLoading]);
-
-  const analyzeResource = useCallback((tasks: Task[]) => 
-    withLoading(() => analyzeResources(tasks)), [withLoading]);
-
-  const chat = useCallback((message: string, context?: any) => 
-    withLoading(() => chatWithAI(message, context)), [withLoading]);
-
-  return {
-    loading,
-    error,
-    decompose,
-    analyzeRisks,
-    predict,
-    analyzeResource,
-    chat
-  };
-}
-
-export default {
-  decomposeProject,
-  analyzeProjectRisks,
-  predictSchedule,
-  analyzeResources,
-  chatWithAI,
-  convertDecomposedTasks,
-  getRiskLevelColor,
-  getRiskLevelText,
-  useAIAssistant
-};

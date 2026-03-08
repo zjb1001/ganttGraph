@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      '@/agent': path.resolve(__dirname, './agent-service/src'),
       '@': path.resolve(__dirname, './src'),
     },
   },

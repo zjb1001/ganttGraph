@@ -110,7 +110,7 @@ REM 创建日志目录
 if not exist "logs" mkdir logs
 
 REM 启动 AI Agent 服务（使用 start 命令在新窗口中）
-echo %INFO%启动 AI Agent 服务 (端口 8000)...%NC%
+echo %INFO%启动 AI Agent 服务 (端口 8000, v1+v2)...%NC%
 cd agent-service
 start "Gantt Graph - AI Agent Service" python main.py
 cd ..

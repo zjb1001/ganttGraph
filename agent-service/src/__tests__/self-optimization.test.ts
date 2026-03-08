@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { OptimizedGanttAgent } from '../OptimizedGanttAgent';
-import { GanttContext } from '../../types';
+import { GanttContext } from '@/types';
 import { selfAnalyzer } from '../SelfOptimizer';
 import { ErrorCode } from '../types';
 

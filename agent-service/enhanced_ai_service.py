@@ -1203,7 +1203,48 @@ class EnhancedGanttAIService:
 
 
 # ===============================
-# FastAPI Application
+# Reusable API Router (mounted by main.py)
+# ===============================
+
+from fastapi import APIRouter
+
+ai_service = EnhancedGanttAIService()
+
+v2_router = APIRouter()
+
+
+@v2_router.post("/api/v2/decompose", response_model=DecomposeResponse)
+async def decompose_tasks(request: DecomposeRequest):
+    """智能任务分解"""
+    return ai_service.decomposer.decompose(request)
+
+
+@v2_router.post("/api/v2/analyze-risks", response_model=RiskAnalysisResponse)
+async def analyze_risks(request: RiskAnalysisRequest):
+    """风险分析"""
+    return ai_service.risk_analyzer.analyze(request)
+
+
+@v2_router.post("/api/v2/predict-schedule", response_model=SchedulePredictionResponse)
+async def predict_schedule(request: SchedulePredictionRequest):
+    """进度预测"""
+    return ai_service.predictor.predict(request)
+
+
+@v2_router.post("/api/v2/analyze-resources", response_model=ResourceConflictResponse)
+async def analyze_resources(request: ResourceConflictRequest):
+    """资源分析"""
+    return ai_service.optimizer.analyze_conflicts(request)
+
+
+@v2_router.post("/api/v2/chat", response_model=NaturalLanguageResponse)
+async def v2_chat(request: NaturalLanguageRequest):
+    """统一对话接口"""
+    return ai_service.process_natural_language(request)
+
+
+# ===============================
+# Standalone App (backward-compat)
 # ===============================
 
 app = FastAPI(
@@ -1212,7 +1253,6 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -1221,8 +1261,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Service instance
-ai_service = EnhancedGanttAIService()
+app.include_router(v2_router)
 
 
 @app.get("/")
@@ -1238,36 +1277,6 @@ async def root():
             "关键路径分析"
         ]
     }
-
-
-@app.post("/api/v2/decompose", response_model=DecomposeResponse)
-async def decompose_tasks(request: DecomposeRequest):
-    """智能任务分解"""
-    return ai_service.decomposer.decompose(request)
-
-
-@app.post("/api/v2/analyze-risks", response_model=RiskAnalysisResponse)
-async def analyze_risks(request: RiskAnalysisRequest):
-    """风险分析"""
-    return ai_service.risk_analyzer.analyze(request)
-
-
-@app.post("/api/v2/predict-schedule", response_model=SchedulePredictionResponse)
-async def predict_schedule(request: SchedulePredictionRequest):
-    """进度预测"""
-    return ai_service.predictor.predict(request)
-
-
-@app.post("/api/v2/analyze-resources", response_model=ResourceConflictResponse)
-async def analyze_resources(request: ResourceConflictRequest):
-    """资源分析"""
-    return ai_service.optimizer.analyze_conflicts(request)
-
-
-@app.post("/api/v2/chat", response_model=NaturalLanguageResponse)
-async def chat(request: NaturalLanguageRequest):
-    """统一对话接口"""
-    return ai_service.process_natural_language(request)
 
 
 if __name__ == "__main__":

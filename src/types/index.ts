@@ -113,7 +113,7 @@ export interface Task {
 }
 
 // 视图类型
-export type ViewType = 'gantt' | 'board' | 'list'
+export type ViewType = 'gantt' | 'board' | 'list' | 'ai'
 
 // Agent 类型定义
 export interface GanttContext {

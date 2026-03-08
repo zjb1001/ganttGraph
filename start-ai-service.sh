@@ -3,8 +3,10 @@
 
 cd "$(dirname "$0")/agent-service"
 
-echo "🚀 启动 AI 后端服务..."
+echo "🚀 启动 AI 后端服务 (v1 + v2)..."
 echo "📍 服务地址: http://localhost:8000"
+echo "📍 v1 API: /api/chat, /api/health"
+echo "📍 v2 API: /api/v2/decompose, /api/v2/analyze-risks, /api/v2/predict-schedule, /api/v2/chat"
 echo "🤖 模型: 智谱 GLM-4"
 echo ""
 
@@ -20,5 +22,5 @@ if ! python3 -c "import fastapi" 2>/dev/null; then
     pip3 install -r requirements.txt
 fi
 
-# 启动服务
-python3 enhanced_ai_service.py
+# 启动统一服务（v1 + v2 合并）
+python3 main.py

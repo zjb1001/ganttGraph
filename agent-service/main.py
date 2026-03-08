@@ -1037,14 +1037,28 @@ app.add_middleware(
 # Agent service instance
 agent_service = GanttAgentService()
 
+# Mount v2 enhanced routes
+try:
+    from enhanced_ai_service import v2_router
+    app.include_router(v2_router)
+    _v2_available = True
+except Exception as e:
+    logging.getLogger(__name__).warning(f"Enhanced AI service (v2) not loaded: {e}")
+    _v2_available = False
+
 
 @app.get("/")
 async def root():
     """Health check endpoint"""
+    features = ["自然语言对话 (v1)"]
+    if _v2_available:
+        features += ["智能任务分解", "风险预警分析", "进度预测", "资源冲突检测"]
     return {
         "service": "Gantt Graph AI Agent Service",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "status": "running",
+        "v2_available": _v2_available,
+        "features": features,
         "llm_config": {
             "provider": os.getenv("LLM_PROVIDER", "zhipu"),
             "base_url": agent_service.llm.base_url,

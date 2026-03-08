@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { GanttAgent } from '../SimpleGanttAgent';
-import { GanttContext } from '../../types';
+import { GanttContext } from '@/types';
 
 describe('🏍️ 摩托车会展项目 - 完整会话提取', () => {
   
