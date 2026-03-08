@@ -128,6 +128,15 @@ class GanttAgentService:
     def __init__(self):
         self.llm = LLMClient()
         self.system_prompt = self._build_system_prompt()
+        
+        # Initialize enhanced services for project-level requests
+        try:
+            from enhanced_ai_service import TaskDecomposer, DecomposeRequest
+            self.task_decomposer = TaskDecomposer(self.llm)
+            self._DecomposeRequest = DecomposeRequest
+        except ImportError:
+            self.task_decomposer = None
+            self._DecomposeRequest = None
 
     def _build_system_prompt(self) -> str:
         return """你是一个甘特图任务管理助手。理解用户意图并返回结构化的 JSON 动作指令。
@@ -836,9 +845,27 @@ class GanttAgentService:
         return None
 
     def process(self, request: AgentRequest, current_date: datetime = None) -> AgentResponse:
-        """Process natural language request"""
+        """Process natural language request with two-phase architecture:
+        Phase 1: Intent recognition - is this a project/plan or a simple operation?
+        Phase 2a: Project/plan → LLM plans content → convert to actions
+        Phase 2b: Simple operation → existing single-LLM flow
+        """
+        import logging
+        logger = logging.getLogger(__name__)
 
-        # Build context-aware prompt with full task list grouped by bucket
+        # Phase 1: Intent recognition
+        intent = self._identify_intent(request.message)
+        logger.info(f"Intent identified: {intent} for message: {request.message[:80]}")
+
+        # Phase 2a: Project/plan level request → use TaskDecomposer (LLM-driven planning)
+        if intent == "project_plan" and self.task_decomposer:
+            return self._handle_project_plan(request, current_date)
+
+        # Phase 2b: Simple operations → existing LLM flow
+        return self._process_simple(request, current_date)
+
+    def _build_context_and_call_llm(self, request: AgentRequest, current_date: datetime = None) -> AgentResponse:
+        """Build context from request and call LLM for simple operations"""
         context_info = ""
         user_message_lower = request.message.lower()
 
@@ -1017,6 +1044,161 @@ class GanttAgentService:
                 needs_clarification=True,
                 clarification_questions=["请尝试重新描述您的需求"]
             )
+
+    def _identify_intent(self, message: str) -> str:
+        """Identify whether the request is a project/plan or a simple operation.
+        
+        Project/plan: user wants to create a complete project, plan, or schedule
+        Simple: user wants to add/update/delete individual tasks, milestones, etc.
+        """
+        msg_lower = message.lower()
+        
+        # Keywords that indicate a project/plan-level request
+        # The key insight: these indicate the user wants LLM to PLAN something,
+        # not just execute a single action
+        project_keywords = [
+            # Chinese project/plan keywords
+            "计划", "规划", "项目", "开发计划", "开发项目",
+            "制定", "安排", "策划", "方案",
+            # Specific project creation patterns
+            "指定一个", "创建一个项目", "做一个计划",
+            # Travel/event planning
+            "出行", "旅游", "旅行", "游玩", "出游",
+            # English
+            "plan", "project", "schedule", "roadmap",
+        ]
+        
+        # Keywords that suggest simple, direct operations (higher priority)
+        simple_keywords = [
+            "添加任务", "添加里程碑", "删除", "更新", "修改",
+            "设置进度", "折叠", "展开", "推迟", "提前",
+            "添加分组", "删除分组", "在分组", "分组里",
+        ]
+        
+        # If user explicitly mentions simple operations, treat as simple
+        for kw in simple_keywords:
+            if kw in msg_lower:
+                return "simple"
+        
+        # Check for project/plan level intent
+        for kw in project_keywords:
+            if kw in msg_lower:
+                return "project_plan"
+        
+        # Default to simple (let existing LLM handle it)
+        return "simple"
+    
+    def _handle_project_plan(self, request: AgentRequest, current_date: datetime = None) -> AgentResponse:
+        """Handle project/plan level requests using LLM-driven TaskDecomposer.
+        
+        This is the correct architecture:
+        1. Let LLM freely plan the project content (phases, tasks, timeline)
+        2. Convert LLM's plan into structured gantt actions
+        
+        No fixed templates - LLM generates appropriate content for ANY topic.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            if current_date is None:
+                current_date = datetime.now()
+            
+            start_date = current_date.strftime("%Y-%m-%d")
+            
+            # Let LLM plan the project content
+            decompose_req = self._DecomposeRequest(
+                goal=request.message,
+                start_date=start_date,
+                team_size=3,
+                complexity="medium"
+            )
+            
+            result = self.task_decomposer.decompose(decompose_req)
+            
+            if not result.success:
+                logger.warning(f"TaskDecomposer failed: {result.message}")
+                # Fall back to simple LLM flow
+                return self._process_simple(request, current_date)
+            
+            # Convert LLM's plan into gantt actions
+            actions = []
+            
+            # Create buckets for each phase
+            for phase in result.phases:
+                phase_name = phase.get("name", "") if isinstance(phase, dict) else str(phase)
+                actions.append(AgentAction(
+                    type="add_bucket",
+                    params={"name": phase_name, "bucketType": "task"},
+                    description=f"创建阶段分组: {phase_name}"
+                ))
+            
+            # Create tasks
+            for task in result.tasks:
+                task_title = task.get("title", "") if isinstance(task, dict) else str(task)
+                task_start = task.get("start_date", start_date) if isinstance(task, dict) else start_date
+                task_end = task.get("end_date", start_date) if isinstance(task, dict) else start_date
+                task_phase = task.get("phase", "") if isinstance(task, dict) else ""
+                task_priority = task.get("priority", "Normal") if isinstance(task, dict) else "Normal"
+                
+                actions.append(AgentAction(
+                    type="add_task",
+                    params={
+                        "title": task_title,
+                        "startDate": task_start,
+                        "dueDate": task_end,
+                        "priority": task_priority,
+                        "status": "NotStarted",
+                        "bucketId": task_phase
+                    },
+                    description=f"创建任务: {task_title}"
+                ))
+            
+            # Create milestones if any
+            milestones = getattr(result, 'milestones', []) or []
+            for ms in milestones:
+                if isinstance(ms, dict):
+                    ms_title = ms.get("title", "")
+                    ms_offset = ms.get("date_offset_days", 0)
+                    ms_date = (current_date + timedelta(days=ms_offset)).strftime("%Y-%m-%d")
+                    actions.append(AgentAction(
+                        type="add_milestone",
+                        params={
+                            "title": ms_title,
+                            "date": ms_date,
+                            "description": ms.get("description", "")
+                        },
+                        description=f"创建里程碑: {ms_title}"
+                    ))
+            
+            phase_count = len(result.phases) if result.phases else 0
+            task_count = len(result.tasks) if result.tasks else 0
+            duration = getattr(result, 'estimated_duration_days', 0) or 0
+            
+            summary = f"已为您创建完整计划，包含{phase_count}个阶段、{task_count}个任务"
+            if duration:
+                summary += f"，预计总工期{duration}天"
+            summary += "。"
+            
+            logger.info(f"Project plan created: {phase_count} phases, {task_count} tasks")
+            
+            return AgentResponse(
+                success=True,
+                message=result.message + "\n\n" + summary,
+                actions=actions,
+                needs_clarification=False,
+                requiresConfirmation=True
+            )
+            
+        except Exception as e:
+            import traceback
+            logger.error(f"Project plan error: {traceback.format_exc()}")
+            # Fall back to simple LLM flow
+            return self._process_simple(request, current_date)
+
+    def _process_simple(self, request: AgentRequest, current_date: datetime = None) -> AgentResponse:
+        """Handle simple operations via existing single-LLM flow"""
+        return self._build_context_and_call_llm(request, current_date)
 
 
 # ===============================
