@@ -363,7 +363,4 @@ export function printSessionLog() {
   console.log('='.repeat(80));
 }
 
-// 如果直接运行此文件，打印会话记录
-if (require.main === module) {
-  printSessionLog();
-}
+// 如需本地调试会话日志，请在外部显式调用 printSessionLog()

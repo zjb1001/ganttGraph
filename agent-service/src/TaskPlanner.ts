@@ -28,6 +28,10 @@ export interface RiskItem {
  * 任务依赖分析器
  */
 export class DependencyAnalyzer {
+  getDependencyId(dep: NonNullable<Task['dependencies']>[number]): string {
+    return typeof dep === 'string' ? dep : dep.taskId;
+  }
+
   /**
    * 构建依赖图
    */
@@ -42,7 +46,8 @@ export class DependencyAnalyzer {
     // 添加依赖边
     tasks.forEach(task => {
       if (task.dependencies) {
-        task.dependencies.forEach(depId => {
+        task.dependencies.forEach(dep => {
+          const depId = this.getDependencyId(dep);
           // 检查依赖任务是否存在
           if (graph.has(depId)) {
             graph.get(task.id)!.add(depId);
@@ -102,7 +107,7 @@ export class DependencyAnalyzer {
     if (!task || !task.dependencies) return [];
     
     return task.dependencies
-      .map(depId => tasks.find(t => t.id === depId))
+      .map(dep => tasks.find(t => t.id === this.getDependencyId(dep)))
       .filter((t): t is Task => t !== undefined);
   }
   
@@ -194,7 +199,7 @@ export class ScheduleEngine {
       
       if (task.dependencies && task.dependencies.length > 0) {
         const depEndDates = task.dependencies
-          .map(depId => taskEndDates.get(depId))
+          .map(dep => taskEndDates.get(this.analyzer.getDependencyId(dep)))
           .filter((d): d is Date => d !== undefined);
         
         if (depEndDates.length > 0) {
@@ -271,7 +276,8 @@ export class ScheduleEngine {
       let es = 0;
       
       if (task.dependencies) {
-        task.dependencies.forEach(depId => {
+        task.dependencies.forEach(dep => {
+          const depId = this.analyzer.getDependencyId(dep);
           const depFinish = earliestFinish.get(depId) || 0;
           es = Math.max(es, depFinish);
         });
@@ -299,7 +305,7 @@ export class ScheduleEngine {
       // 找到前置任务中完成时间最晚的
       if (currentTask.dependencies && currentTask.dependencies.length > 0) {
         currentTask = currentTask.dependencies
-          .map(depId => taskMap.get(depId))
+          .map(dep => taskMap.get(this.analyzer.getDependencyId(dep)))
           .filter((t): t is Task => t !== undefined)
           .reduce((max, task) => 
             (earliestFinish.get(task.id) || 0) > (earliestFinish.get(max?.id) || 0) ? task : max

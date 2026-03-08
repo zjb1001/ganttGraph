@@ -4,6 +4,7 @@
  */
 
 import { db } from './index';
+import type { TaskStatus } from '@/types';
 
 export async function initializeVehicleProject() {
   console.log('🚗 初始化整车项目...');
@@ -212,7 +213,7 @@ export async function initializeVehicleProject() {
       projectId,
       title: task.title,
       description: '',
-      status: task.status,
+      status: task.status as TaskStatus,
       priority: task.priority as any,
       taskType: task.isMilestone ? 'milestone' : 'task',
       startDateTime: startDate,

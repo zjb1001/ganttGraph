@@ -175,7 +175,7 @@ class Logger {
     }
     
     // 开发环境输出到控制台
-    if (process.env.NODE_ENV !== 'production') {
+    if (import.meta.env.MODE !== 'production') {
       console.log(`[${level.toUpperCase()}] ${message}`, context || '');
     }
   }

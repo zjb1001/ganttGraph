@@ -467,7 +467,7 @@ export class PredictiveAnalysisEngine {
     // 检查高风险关键词
     for (const task of context.tasks) {
       for (const risk of template.industryRisks) {
-        if (risk.keywords.some(kw => task.title.toLowerCase().includes(kw.toLowerCase()))) {
+        if (risk.keywords.some((kw: string) => task.title.toLowerCase().includes(kw.toLowerCase()))) {
           risks.push({
             taskId: task.id,
             taskName: task.title,

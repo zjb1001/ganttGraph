@@ -347,8 +347,10 @@ export default function TaskPanel() {
                 <div className={styles.dependencyList}>
                   <div className={styles.dependencyLabel}>依赖于：</div>
                   {dependencyTasks.map((depTask) => {
-                    const dep = (task.dependencies || []).find((d) => d.taskId === depTask.id)
-                    const lagDays = dep?.lagDays || 0
+                    const dep = (task.dependencies || []).find((d) =>
+                      typeof d === 'string' ? d === depTask.id : d.taskId === depTask.id
+                    )
+                    const lagDays = typeof dep === 'string' ? 0 : dep?.lagDays || 0
                     // 检查约束违反
                     const depEndDate = new Date(depTask.dueDateTime)
                     const taskStartDate = new Date(task.startDateTime)

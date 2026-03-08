@@ -3,7 +3,19 @@
  * 支持汽车、航空、医疗等不同行业的项目特性
  */
 
-import { SafetyRequirement, IndustryRisk, IndustryKPI } from './PredictiveAnalysisEngine';
+export interface IndustryRisk {
+  type: 'safety' | 'integration' | 'resource' | 'functional' | 'compliance' | string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  description: string;
+  mitigation: string;
+  keywords: string[];
+}
+
+export interface IndustryKPI {
+  name: string;
+  target: string;
+  unit: 'percentage' | 'time' | 'count' | 'level' | string;
+}
 
 // 行业类型
 export type IndustryType = 'automotive' | 'aerospace' | 'medical' | 'consumer' | 'industrial';
