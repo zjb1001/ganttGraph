@@ -78,6 +78,7 @@ export interface Task {
   taskType: TaskType
 
   // 时间信息
+  startDate?: Date
   startDateTime: Date
   dueDateTime: Date
 
@@ -102,7 +103,7 @@ export interface Task {
   // 依赖关系 (可选)
   dependencyTaskIds?: string[] // 依赖的任务 ID 列表（兼容旧数据）
   dependentTaskIds?: string[] // 被依赖的任务 ID 列表（反向引用）
-  dependencies?: Dependency[] // 带延迟约束的依赖列表
+  dependencies?: Array<Dependency | string> // 兼容旧数据: 允许仅存 taskId 字符串
 
   // 相对截止日期约束
   deadlineConstraint?: DeadlineConstraint

@@ -4,14 +4,7 @@ import { STATUS_COLORS, PRIORITY_COLORS } from '@/utils/colors'
 import { getDaysBetween, isToday } from '@/utils/date'
 import { Task, Bucket } from '@/types'
 import { exportAsImage, exportAsPDF } from '@/utils/exportGantt'
-import { 
-  useGanttAgent, 
-  TaskRiskBadge, 
-  AgentInsightPanel,
-  GanttAgentToolbar,
-  PredictivePanel,
-  BrakingPanel
-} from './GanttAgentOverlay'
+
 import styles from './GanttView.module.css'
 
 // 日期信息接口
@@ -27,9 +20,6 @@ interface DateInfo {
 
 export default function GanttView() {
   const { tasks, buckets, currentProjectId, setSelectedTaskId, addDependency, removeDependency, updateTask, addTask, deleteTask, addBucket, updateBucket, deleteBucket, projects, collapsedBucketIds: collapsedBuckets, toggleBucketCollapse, collapseBucketsByType } = useAppStore()
-  
-  // Agent 功能
-  const { getTaskRisk } = useGanttAgent()
   
   const ganttRef = useRef<HTMLDivElement>(null)
   const ganttScrollRef = useRef<HTMLDivElement>(null)
@@ -903,8 +893,8 @@ export default function GanttView() {
         const toY   = toRowIndex   * 36 + 18
 
         // 查找 lag 约束
-        const dep = (task.dependencies || []).find((d) => d.taskId === depId)
-        const lagDays = dep?.lagDays || 0
+        const dep = (task.dependencies || []).find((d) => (typeof d === 'string' ? d === depId : d.taskId === depId))
+        const lagDays = typeof dep === 'string' ? 0 : dep?.lagDays || 0
 
         // 计算违反情况：前序结束日 + lagDays 应 <= 当前任务开始日
         // 即使 lagDays=0，如果后继任务在前序结束前就开始，也是违反
@@ -943,18 +933,7 @@ export default function GanttView() {
 
   return (
     <>
-      {/* Agent 洞察面板 */}
-      <AgentInsightPanel />
-      
-      {/* Level 8-10: 预测与自主执行面板 */}
-      <PredictivePanel />
-      
-      {/* 制动项目专用面板 */}
-      <BrakingPanel />
-      
       <div className={`${styles.ganttView} ${resizePreview ? styles.ganttResizing : ''}`} ref={ganttRef}>
-        {/* Agent 工具栏 */}
-        <GanttAgentToolbar />
       {/* ── 单一滚动容器：同时承载左侧冻结列和右侧时间轴 ── */}
       <div className={styles.ganttScroll} ref={ganttScrollRef}>
         <div className={styles.ganttInner} style={{ width: `${TASK_LIST_WIDTH + totalWidth}px` }}>
@@ -1534,7 +1513,6 @@ export default function GanttView() {
                         title="拖拽调整开始日期"
                       />
                       <span className={styles.taskBarLabel}>{row.task.title}</span>
-                      <TaskRiskBadge risk={getTaskRisk(row.task.id)} />
                       {row.task.deadlineConstraint && (() => {
                         const refTask = tasks.find((t) => t.id === row.task.deadlineConstraint!.refTaskId)
                         if (!refTask) return null

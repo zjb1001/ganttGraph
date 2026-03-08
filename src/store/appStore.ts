@@ -74,7 +74,7 @@ export const useAppStore = create<AppStore>()(
         // 初始状态
         // ============================================
         currentProjectId: null,
-        currentView: 'gantt',
+        currentView: 'ai',
         selectedTaskId: null,
         timeUnit: 'week',
         sidebarCollapsed: false,
@@ -266,7 +266,7 @@ export const useAppStore = create<AppStore>()(
 
           // 更新当前任务的依赖列表（兼容旧字段 + 新结构）
           const dependencyTaskIds = task.dependencyTaskIds || []
-          const dependencies: Dependency[] = task.dependencies || []
+          const dependencies: Array<Dependency | string> = task.dependencies || []
           if (!dependencyTaskIds.includes(dependsOnTaskId)) {
             dependencyTaskIds.push(dependsOnTaskId)
             dependencies.push({ taskId: dependsOnTaskId, lagDays })
@@ -290,7 +290,9 @@ export const useAppStore = create<AppStore>()(
 
           // 更新当前任务的依赖列表
           const dependencyTaskIds = (task.dependencyTaskIds || []).filter((id) => id !== dependsOnTaskId)
-          const dependencies = (task.dependencies || []).filter((d) => d.taskId !== dependsOnTaskId)
+          const dependencies = (task.dependencies || []).filter((d) =>
+            typeof d === 'string' ? d !== dependsOnTaskId : d.taskId !== dependsOnTaskId
+          )
           await get().updateTask(taskId, { dependencyTaskIds, dependencies })
 
           // 更新被依赖任务的反向依赖列表
@@ -303,9 +305,12 @@ export const useAppStore = create<AppStore>()(
           const task = state.tasks.find((t) => t.id === taskId)
           if (!task) return
 
-          const dependencies = (task.dependencies || []).map((d) =>
-            d.taskId === dependsOnTaskId ? { ...d, lagDays } : d
-          )
+          const dependencies = (task.dependencies || []).map((d) => {
+            if (typeof d === 'string') {
+              return d === dependsOnTaskId ? { taskId: d, lagDays } : d
+            }
+            return d.taskId === dependsOnTaskId ? { ...d, lagDays } : d
+          })
           await get().updateTask(taskId, { dependencies })
         },
 

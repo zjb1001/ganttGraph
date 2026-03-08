@@ -248,8 +248,9 @@ export class GanttRenderer {
       const duration = task.startDateTime && task.dueDateTime
         ? Math.ceil((new Date(task.dueDateTime).getTime() - new Date(task.startDateTime).getTime()) / (24 * 60 * 60 * 1000))
         : '-';
-      const progress = (task.completedPercent || 0) + '%';
-      const status = task.completedPercent === 100 ? '✅ 完成' : task.completedPercent > 0 ? '🔄 进行中' : '⏳ 未开始';
+      const completed = task.completedPercent ?? 0;
+      const progress = completed + '%';
+      const status = completed === 100 ? '✅ 完成' : completed > 0 ? '🔄 进行中' : '⏳ 未开始';
       
       lines.push(`| ${task.title} | ${start} | ${end} | ${duration} | ${progress} | ${status} |`);
     });

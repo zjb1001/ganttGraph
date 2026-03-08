@@ -4,6 +4,7 @@
  */
 
 import { db } from './index';
+import type { TaskStatus } from '@/types';
 
 export async function initializeMKC2Project() {
   console.log('🔧 初始化MKC2制动器项目...');
@@ -164,7 +165,7 @@ export async function initializeMKC2Project() {
       projectId,
       title: task.title,
       description: '',
-      status: task.status,
+      status: task.status as TaskStatus,
       priority: task.priority as any,
       taskType: task.isMilestone ? 'milestone' : 'task',
       startDateTime: startDate,
