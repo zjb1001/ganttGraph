@@ -1,196 +1,236 @@
-# Gantt Graph AI - AI增强版甘特图
+# Gantt Graph AI - AI增强版甘特图项目管理工具
 
 <p align="center">
   <img src="web-demo/gantt-screenshot.png" alt="Gantt Graph AI Screenshot" width="100%">
 </p>
 
 <p align="center">
-  <a href="#功能特性">功能特性</a> •
+  <a href="#架构概览">架构概览</a> •
   <a href="#快速开始">快速开始</a> •
-  <a href="#AI功能">AI功能</a> •
+  <a href="#ai-智能助手">AI智能助手</a> •
   <a href="#项目结构">项目结构</a> •
-  <a href="#技术栈">技术栈</a>
+  <a href="#技术栈">技术栈</a> •
+  <a href="#测试">测试</a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/React-18-blue?logo=react" alt="React">
-  <img src="https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript" alt="TypeScript">
+  <img src="https://img.shields.io/badge/React-18.3-blue?logo=react" alt="React">
+  <img src="https://img.shields.io/badge/TypeScript-5.7-blue?logo=typescript" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Vite-6.2-purple?logo=vite" alt="Vite">
   <img src="https://img.shields.io/badge/Python-3.12-blue?logo=python" alt="Python">
-  <img src="https://img.shields.io/badge/FastAPI-latest-green?logo=fastapi" alt="FastAPI">
-  <img src="https://img.shields.io/badge/智谱GLM--4-AI-orange" alt="智谱GLM-4">
+  <img src="https://img.shields.io/badge/FastAPI-0.104+-green?logo=fastapi" alt="FastAPI">
+  <img src="https://img.shields.io/badge/LLM-多模型支持-orange" alt="LLM">
 </p>
 
-## ✨ 功能特性
+---
 
-### 🤖 AI智能助手（核心亮点）
-- **🧩 智能任务分解** - 输入自然语言需求，AI自动生成结构化项目计划
-- **⚠️ 风险分析** - 自动识别项目风险，提供改进建议
-- **🔮 进度预测** - 基于CPM算法预测项目完成时间，识别关键路径
+## 架构概览
 
-### 📊 甘特图可视化
-- 直观的任务时间线展示
-- 里程碑管理
-- 任务依赖关系可视化
-- 进度跟踪
+全栈 AI 甘特图项目管理工具，采用前后端分离架构：
 
-### 🎯 项目管理
-- 多项目管理
-- 团队任务分配
-- 优先级设置
-- 本地数据存储（IndexedDB）
+- **前端**：React 18 + Zustand + Dexie（IndexedDB），提供甘特图/看板/列表多视图
+- **后端**：FastAPI + OpenAI SDK，两阶段 AI 处理架构（意图识别 → 内容生成）
+- **数据存储**：纯客户端 IndexedDB，无服务端数据库依赖
 
-## 🚀 快速开始
+### 核心设计：两阶段 AI 处理
 
-### 前端启动
-
-```bash
-# 安装依赖
-npm install
-
-# 启动开发服务器
-npm run dev
+```
+用户输入 → 意图识别(_identify_intent)
+              ├── project_plan → TaskDecomposer(LLM驱动) → 多阶段/多任务/里程碑
+              └── simple       → 单次LLM调用 → 单个操作(增删改查)
 ```
 
-### 后端AI服务启动
+- **项目级请求**（规划、计划、项目分解等）：由 `TaskDecomposer` 调用 LLM 自由生成结构化计划，不依赖硬编码模板
+- **简单操作**（添加/删除/修改任务）：单次 LLM 调用，直接映射到操作指令
+
+## 快速开始
+
+### 前端
+
+```bash
+npm install
+npm run dev          # 启动开发服务器 → http://localhost:5173
+```
+
+### 后端 AI 服务
 
 ```bash
 cd agent-service
-
-# 安装Python依赖
 pip install -r requirements.txt
 
-# 配置环境变量
+# 配置 LLM 提供商
 cp .env.example .env
-# 编辑 .env 文件，填入你的智谱API Key
+# 编辑 .env，填入 API Key
 
-# 启动AI服务
-python3 enhanced_ai_service.py
+python3 main.py      # 启动 AI 服务 → http://localhost:8000
 ```
 
-### 配置AI服务
+### 一键启动
 
-编辑 `agent-service/.env`：
+```bash
+bash start.sh        # 同时启动前端 + 后端
+```
+
+### 环境配置
+
+编辑 `agent-service/.env`，支持多种 LLM 提供商：
 
 ```env
+# 智谱 GLM-4
 LLM_PROVIDER=zhipu
-LLM_API_KEY=your_zhipu_api_key_here
+LLM_API_KEY=your_api_key
 LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
-LLM_MODEL=glm-4
+LLM_MODEL=glm-4-flash
+
+# 或 DeepSeek
+# LLM_BASE_URL=https://api.deepseek.com/v1
+# LLM_MODEL=deepseek-chat
+
+# 或本地 Ollama
+# LLM_BASE_URL=http://localhost:11434/v1
+# LLM_MODEL=qwen2.5
+
 PORT=8000
 ```
 
-获取智谱API Key：[https://platform.moonshot.cn/](https://platform.moonshot.cn/)
+## AI 智能助手
 
-## 🧠 AI功能演示
+### 支持的操作类型
 
-### 1. 智能任务分解
+| 类型     | 触发方式                        | 处理流程                     | 示例                         |
+| -------- | ------------------------------- | ---------------------------- | ---------------------------- |
+| 项目规划 | 含"计划/规划/项目/开发"等关键词 | TaskDecomposer → 多阶段分解  | "制定一个制动控制器开发计划" |
+| 任务操作 | 含"添加/删除/修改任务"等关键词  | 单次LLM → 单个操作           | "添加一个任务叫UI设计"       |
+| 自由规划 | 任意主题的计划类需求            | TaskDecomposer → LLM自由生成 | "上海周边两日游亲子游计划"   |
 
-输入项目需求：
-```
-开发一套完整的整车电子制动系统，包含：
-- 主控制器：基于AUTOSAR架构的BCU
-- 传感器系统：轮速、踏板位置、压力传感器  
-- 执行机构：ESC模块、ABS阀体、EPB电机
-- 核心功能：ABS、EBD、ESC、EPB、Autohold
-- 技术要求：ASIL-D、ISO 26262、响应<200ms
-- 开发周期：18个月，团队15人
-```
+### v2 增强接口
 
-AI输出：
-- ✅ 7个开发阶段
-- ✅ 28个具体任务
-- ✅ 540天工期规划
-- ✅ 任务依赖关系
-- ✅ 关键里程碑
+后端同时提供 v2 独立分析接口：
 
-### 2. 技术要素覆盖分析
+| 接口     | 路径                             | 功能                             |
+| -------- | -------------------------------- | -------------------------------- |
+| 任务分解 | `POST /api/v2/decompose`         | 将目标分解为阶段/任务/里程碑     |
+| 风险分析 | `POST /api/v2/analyze-risks`     | 依赖风险、进度风险、资源风险检测 |
+| 进度预测 | `POST /api/v2/predict-schedule`  | CPM关键路径计算 + 完成时间预测   |
+| 资源分析 | `POST /api/v2/analyze-resources` | 资源冲突检测 + 利用率分析        |
 
-AI自动识别项目中的关键技术要素：
-- ✅ 系统架构
-- ✅ 传感器系统
-- ✅ 执行机构
-- ✅ 通信网络
-- ✅ 功能开发
-- ✅ 功能安全
-- ✅ 测试验证
-
-## 📁 项目结构
+## 项目结构
 
 ```
 ganttGraph/
-├── 📁 src/                      # 前端React源码
-│   ├── components/              # 组件
-│   ├── pages/                   # 页面
-│   ├── stores/                  # 状态管理
-│   └── utils/                   # 工具函数
-├── 📁 agent-service/            # AI后端服务
-│   ├── enhanced_ai_service.py   # FastAPI服务
-│   ├── test_*.py                # 测试脚本
-│   ├── requirements.txt         # Python依赖
-│   └── .env.example             # 环境配置示例
-├── 📁 web-demo/                 # Web演示
-│   ├── gantt-preview.html       # 界面预览
-│   └── gantt-screenshot.png     # 截图
-├── 📄 package.json              # 前端依赖
-├── 📄 vite.config.ts            # Vite配置
-└── 📄 README.md                 # 项目说明
+├── src/                           # 前端 React 源码
+│   ├── components/
+│   │   ├── AIAssistant/           # AI 对话助手界面
+│   │   ├── GanttView/             # 甘特图视图
+│   │   ├── BoardView/             # 看板视图
+│   │   ├── ListView/              # 列表视图
+│   │   ├── Dashboard/             # 项目仪表盘
+│   │   ├── TaskPanel/             # 任务详情面板
+│   │   ├── Header/                # 顶部导航
+│   │   └── Sidebar/               # 侧边栏
+│   ├── store/appStore.ts          # Zustand 状态管理
+│   ├── db/index.ts                # Dexie IndexedDB 封装
+│   ├── types/index.ts             # TypeScript 类型定义
+│   ├── utils/
+│   │   ├── agentApi.ts            # v1 API 客户端
+│   │   ├── enhancedAgentApi.ts    # v2 增强 API 客户端
+│   │   ├── agentTools.ts          # Agent 工具函数
+│   │   ├── date.ts                # 日期工具
+│   │   ├── colors.ts              # 颜色方案
+│   │   └── exportGantt.ts         # PDF/图片导出
+│   └── test/                      # 前端单元测试
+│
+├── agent-service/                 # 后端 AI 服务
+│   ├── main.py                    # FastAPI 主服务（两阶段架构）
+│   ├── enhanced_ai_service.py     # v2 增强服务（TaskDecomposer/RiskAnalyzer/CPM）
+│   ├── requirements.txt           # Python 依赖
+│   ├── .env.example               # 环境配置示例
+│   ├── src/                       # TypeScript Agent 架构（多级演进）
+│   │   ├── SimpleGanttAgent.ts    # Level 1-2: 基础 Agent
+│   │   ├── OptimizedGanttAgent.ts # Level 3-4: 优化 Agent
+│   │   ├── GoalDrivenPlanner.ts   # Level 5: 目标驱动规划
+│   │   ├── TaskPlanner.ts         # 任务规划器
+│   │   ├── ContextManager.ts      # 上下文管理
+│   │   ├── SpecializedAgents.ts   # 领域专用 Agent
+│   │   ├── MultiAgentSystem.ts    # Level 7: 多 Agent 协作
+│   │   └── types.ts               # Agent 类型定义
+│   └── tests/                     # 后端测试脚本
+│
+├── web-demo/                      # 静态演示页面
+├── vite.config.ts                 # Vite 构建配置
+├── vitest.config.ts               # 测试框架配置
+├── eslint.config.js               # ESLint 配置
+└── tsconfig.json                  # TypeScript 配置
 ```
 
-## 🛠️ 技术栈
+## 技术栈
 
 ### 前端
-- **React 18** - UI框架
-- **TypeScript** - 类型安全
-- **Vite** - 构建工具
-- **Zustand** - 状态管理
-- **Dexie.js** - IndexedDB封装
-- **@dnd-kit** - 拖拽交互
+
+| 技术                | 版本 | 用途                           |
+| ------------------- | ---- | ------------------------------ |
+| React               | 18.3 | UI 框架                        |
+| TypeScript          | 5.7  | 类型安全                       |
+| Vite                | 6.2  | 构建工具                       |
+| Zustand             | 5.0  | 状态管理（persist + devtools） |
+| Dexie.js            | 4.0  | IndexedDB 客户端存储           |
+| @dnd-kit            | 6.3  | 拖拽交互                       |
+| html2canvas + jsPDF | -    | 甘特图导出                     |
 
 ### 后端
-- **FastAPI** - Python Web框架
-- **OpenAI SDK** - LLM调用
-- **智谱GLM-4** - AI模型
-- **Pydantic** - 数据验证
 
-## 🧪 测试验证
+| 技术       | 版本   | 用途                         |
+| ---------- | ------ | ---------------------------- |
+| FastAPI    | 0.104+ | Web 框架                     |
+| OpenAI SDK | 1.0+   | LLM 统一调用（兼容多提供商） |
+| Pydantic   | 2.5+   | 数据模型验证                 |
+| uvicorn    | 0.24+  | ASGI 服务器                  |
 
-项目已验证的AI功能：
+### 支持的 LLM 提供商
 
-| 功能 | 状态 | 详情 |
-|------|------|------|
-| API连接 | ✅ | 智谱GLM-4响应正常 |
-| 任务分解 | ✅ | 支持专业技术项目 |
-| 风险分析 | ✅ | 识别延期、依赖风险 |
-| 进度预测 | ✅ | CPM算法+关键路径 |
+所有兼容 OpenAI 格式的 API 均可接入：
 
-测试案例：
-- [展销会计划](./agent-service/test_exhibition_glm4.py) - 活动策划类
-- [制动系统开发](./agent-service/test_braking_system.py) - 汽车电子专业类
+- **智谱 GLM-4** / GLM-4-Flash
+- **DeepSeek**
+- **Moonshot (Kimi)**
+- **本地 Ollama**
+- **OpenAI GPT** 系列
 
-## 📸 界面展示
+## 测试
 
-### 主界面
-![主界面](web-demo/gantt-screenshot.png)
+```bash
+# 运行全部测试（154 个测试用例）
+npm test
 
-### AI功能展示
-![展销会计划](./agent-service/test_report_visual.png)
+# 运行并生成覆盖率
+npm run test:coverage
 
-## 🤝 贡献
+# UI 测试界面
+npm run test:ui
+```
 
-欢迎提交Issue和Pull Request！
+测试覆盖：
 
-## 📄 许可证
+- 前端：日期工具、Agent 工具函数、增强 API 客户端
+- 后端 Agent 架构：多级 Agent 演进测试（Level 1-8）、行业模板测试、全生命周期测试
+
+## 开发
+
+```bash
+npm run dev           # 开发服务器
+npm run build         # 生产构建
+npm run lint          # ESLint 检查
+npm test              # 运行测试
+```
+
+Git 提交自动触发 Husky pre-commit hook（lint-staged + 测试）。
+
+## 许可证
 
 [MIT License](./LICENSE)
-
-## 🙏 致谢
-
-- [智谱AI](https://platform.moonshot.cn/) - 提供GLM-4模型支持
-- [React](https://react.dev/) - 前端框架
-- [FastAPI](https://fastapi.tiangolo.com/) - 后端框架
 
 ---
 
 <p align="center">
-  Made with ❤️ by Gantt Graph AI Team
+  <a href="https://github.com/zjb1001/ganttGraph">GitHub</a>
 </p>
