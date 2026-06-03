@@ -329,6 +329,7 @@ export async function executeAgentAction(action: AgentAction): Promise<string> {
           color: color || '#0078d4',
           bucketType: bucketType === 'milestone' ? 'milestone' : 'task',
           order: buckets.length + 1,
+          projectId: currentProjectId || '',
         });
 
         const typeText = bucketType === 'milestone' ? '里程碑分组' : '分组';

@@ -3,7 +3,6 @@ import { useAppStore } from '@/store/appStore'
 import { STATUS_COLORS, PRIORITY_COLORS } from '@/utils/colors'
 import { getDaysBetween, isToday } from '@/utils/date'
 import { Task, Bucket } from '@/types'
-import { exportAsImage, exportAsPDF } from '@/utils/exportGantt'
 
 import styles from './GanttView.module.css'
 
@@ -19,7 +18,7 @@ interface DateInfo {
 }
 
 export default function GanttView() {
-  const { tasks, buckets, currentProjectId, setSelectedTaskId, addDependency, removeDependency, updateTask, addTask, deleteTask, addBucket, updateBucket, deleteBucket, projects, collapsedBucketIds: collapsedBuckets, toggleBucketCollapse, collapseBucketsByType } = useAppStore()
+  const { tasks, buckets, currentProjectId, setSelectedTaskId, addDependency, removeDependency, updateTask, addTask, deleteTask, addBucket, updateBucket, deleteBucket, projects, updateProject, collapsedBucketIds: collapsedBuckets, toggleBucketCollapse, collapseBucketsByType, verticalMarkers, addMarker, deleteMarker, updateMarker } = useAppStore()
   
   const ganttRef = useRef<HTMLDivElement>(null)
   const ganttScrollRef = useRef<HTMLDivElement>(null)
@@ -56,10 +55,40 @@ export default function GanttView() {
   const actionPanelRef = useRef<HTMLDivElement>(null)
   // 折叠的分组 (from store)
   // const [collapsedBuckets] is now from store as collapsedBucketIds
-  // 时间轴起止日期
+  // 时间轴起止日期 —— 从项目记录读取，未设置时回落到当前年份
+  const currentProject = useMemo(() => projects.find((p) => p.id === currentProjectId), [projects, currentProjectId])
   const _defaultYear = new Date().getFullYear()
-  const [timelineStart, setTimelineStart] = useState(`${_defaultYear}-01-01`)
-  const [timelineEnd, setTimelineEnd] = useState(`${_defaultYear}-12-31`)
+  const [timelineStart, setTimelineStart] = useState(() => currentProject?.ganttStart ?? `${_defaultYear}-01-01`)
+  const [timelineEnd, setTimelineEnd] = useState(() => currentProject?.ganttEnd ?? `${_defaultYear}-12-31`)
+
+  // 切换项目时同步时间轴
+  const prevProjectIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (currentProjectId === prevProjectIdRef.current) return
+    prevProjectIdRef.current = currentProjectId
+    const year = new Date().getFullYear()
+    setTimelineStart(currentProject?.ganttStart ?? `${year}-01-01`)
+    setTimelineEnd(currentProject?.ganttEnd ?? `${year}-12-31`)
+  }, [currentProjectId, currentProject])
+
+  // 节流写库：时间轴变更后 800ms 内没有再变动才持久化
+  const timelineSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveTimeline = useCallback((start: string, end: string) => {
+    if (!currentProjectId) return
+    if (timelineSaveTimer.current) clearTimeout(timelineSaveTimer.current)
+    timelineSaveTimer.current = setTimeout(() => {
+      updateProject(currentProjectId, { ganttStart: start, ganttEnd: end })
+    }, 800)
+  }, [currentProjectId, updateProject])
+  // Vertical marker lines — form UI state only (data from store)
+  const [addingMarker, setAddingMarker] = useState(false)
+  const [newMarkerDate, setNewMarkerDate] = useState('')
+  const [newMarkerLabel, setNewMarkerLabel] = useState('')
+  const [newMarkerColor, setNewMarkerColor] = useState('#e00000')
+  const [newMarkerThickness, setNewMarkerThickness] = useState(2)
+  // Column resize (task name vs progress)
+  const [taskListWidth, setTaskListWidth] = useState(360)
+  const colResizeRef = useRef<{ startX: number; startWidth: number } | null>(null)
   // 分组拖拽排序
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null)
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null)
@@ -75,13 +104,27 @@ export default function GanttView() {
   } | null>(null)
   const resizePreviewRef = useRef<{ taskId: string; start: Date; end: Date } | null>(null)
   const [resizePreview, setResizePreview] = useState<{ taskId: string; start: Date; end: Date } | null>(null)
+  const justResizedRef = useRef(false)
 
   const projectTasks = tasks.filter((t) => t.projectId === currentProjectId)
 
+  // 当前项目任务实际引用的所有 bucketId
+  const taskBucketIds = useMemo(() =>
+    new Set(tasks.filter((t) => t.projectId === currentProjectId).map((t) => t.bucketId))
+  , [tasks, currentProjectId])
+
+  // 当前项目的分组：精确匹配 projectId，或 projectId=''（迁移未能推断）但被本项目任务引用
+  const currentProjectBuckets = useMemo(() =>
+    buckets.filter((b) =>
+      b.projectId === currentProjectId ||
+      (b.projectId === '' && taskBucketIds.has(b.id))
+    )
+  , [buckets, currentProjectId, taskBucketIds])
+
   // 分离里程碑分组和普通任务分组
   const milestoneBuckets = useMemo(() =>
-    buckets.filter((b) => b.bucketType === 'milestone').sort((a, b) => a.order - b.order)
-  , [buckets])
+    currentProjectBuckets.filter((b) => b.bucketType === 'milestone').sort((a, b) => a.order - b.order)
+  , [currentProjectBuckets])
   const milestoneBucketIds = useMemo(() => new Set(milestoneBuckets.map((b) => b.id)), [milestoneBuckets])
 
   // 里程碑任务按 bucketId 归属到对应里程碑分组
@@ -122,7 +165,7 @@ export default function GanttView() {
     ;(async () => {
       // 创建默认里程碑分组
       const defaultBucket = await addBucket({
-        name: '里程碑',
+        name: 'Milestones',
         order: 0,
         color: '#d83b01',
         bucketType: 'milestone'
@@ -135,25 +178,44 @@ export default function GanttView() {
     })()
   }, [milestoneTasks, milestoneBucketIds, addBucket, updateTask])
 
+  // ── 修复迁移遗留：将 projectId='' 但被本项目任务引用的孤儿分组自动回填 projectId ──
+  const orphanFixDone = useRef(false)
+  useEffect(() => {
+    if (!currentProjectId || orphanFixDone.current) return
+    const orphanBuckets = currentProjectBuckets.filter((b) => b.projectId === '')
+    if (orphanBuckets.length === 0) return
+    orphanFixDone.current = true
+    ;(async () => {
+      for (const b of orphanBuckets) {
+        await updateBucket(b.id, { projectId: currentProjectId })
+      }
+    })()
+  }, [currentProjectBuckets, currentProjectId, updateBucket])
+
   // 该项目中实际用到的普通 bucket（排除里程碑分组）
   const projectBuckets = useMemo(() => {
     const seen = new Set<string>()
     const result: Bucket[] = []
-    for (const b of buckets) {
+    for (const b of currentProjectBuckets) {
       if (!seen.has(b.id) && b.bucketType !== 'milestone') {
         seen.add(b.id)
         result.push(b)
       }
     }
-    // 兜底：任务引用了 store 中不存在的 bucket
+    // 兜底：任务引用了不在当前项目分组内的 bucket（可能是迁移遗漏的孤儿）
     const usedIds = new Set(regularTasks.map((t) => t.bucketId))
     for (const id of usedIds) {
       if (!seen.has(id)) {
-        result.push({ id, name: '未分组', order: 999, color: '#a19f9d' })
+        // 从全量 buckets 查找真实对象，用真实名字而非硬编码 'Ungrouped'
+        const real = buckets.find((b) => b.id === id)
+        result.push(real
+          ? { ...real, projectId: currentProjectId || '' }
+          : { id, projectId: currentProjectId || '', name: 'Ungrouped', order: 999, color: '#a19f9d' }
+        )
       }
     }
     return result.sort((a, b) => a.order - b.order)
-  }, [buckets, regularTasks])
+  }, [currentProjectBuckets, regularTasks, currentProjectId, buckets])
 
   // 行项目：里程碑分组 + 普通分组标题行 + 任务行
   type RowItem =
@@ -257,21 +319,29 @@ export default function GanttView() {
       current.setDate(current.getDate() + 1)
     }
 
-    // 生成周信息：每周按实际天数统计
+    // Generate week info: use ISO week-of-year numbers
     const weekInfo: { startIndex: number; weekNum: number; dayCount: number }[] = []
     let weekStartIdx = 0
-    let weekNumCounter = 1
+
+    const getISOWeekNumber = (date: Date): number => {
+      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+      const dayNum = d.getUTCDay() || 7
+      d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+      return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+    }
+
+    let currentWeekNum = getISOWeekNumber(dateInfo[0].date)
 
     for (let i = 0; i < dateInfo.length; i++) {
       if (dateInfo[i].isWeekStart && i > 0) {
-        weekInfo.push({ startIndex: weekStartIdx, weekNum: weekNumCounter, dayCount: i - weekStartIdx })
-        weekNumCounter++
+        weekInfo.push({ startIndex: weekStartIdx, weekNum: currentWeekNum, dayCount: i - weekStartIdx })
+        currentWeekNum = getISOWeekNumber(dateInfo[i].date)
         weekStartIdx = i
       }
     }
-    // 最后一段
     if (weekStartIdx < dateInfo.length) {
-      weekInfo.push({ startIndex: weekStartIdx, weekNum: weekNumCounter, dayCount: dateInfo.length - weekStartIdx })
+      weekInfo.push({ startIndex: weekStartIdx, weekNum: currentWeekNum, dayCount: dateInfo.length - weekStartIdx })
     }
 
     // 回填 week 编号
@@ -281,7 +351,8 @@ export default function GanttView() {
       }
     })
 
-    // 生成月信息：每个月统计实际占多少天
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
     const monthInfo: { month: number; year: number; name: string; startDayIndex: number; dayCount: number }[] = []
     let mStart = 0
     let mMonth = dateInfo[0].month
@@ -292,7 +363,7 @@ export default function GanttView() {
         monthInfo.push({
           month: mMonth,
           year: mYear,
-          name: `${mYear}年${mMonth + 1}月`,
+          name: `${monthNames[mMonth]} ${mYear}`,
           startDayIndex: mStart,
           dayCount: i - mStart
         })
@@ -301,11 +372,10 @@ export default function GanttView() {
         mYear  = dateInfo[i].year
       }
     }
-    // 最后一个月
     monthInfo.push({
       month: mMonth,
       year: mYear,
-      name: `${mYear}年${mMonth + 1}月`,
+      name: `${monthNames[mMonth]} ${mYear}`,
       startDayIndex: mStart,
       dayCount: dateInfo.length - mStart
     })
@@ -332,8 +402,11 @@ export default function GanttView() {
     minDate.setDate(minDate.getDate() - 7)
     maxDate.setDate(maxDate.getDate() + 7)
     const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    setTimelineStart(fmt(minDate))
-    setTimelineEnd(fmt(maxDate))
+    const start = fmt(minDate)
+    const end = fmt(maxDate)
+    setTimelineStart(start)
+    setTimelineEnd(end)
+    saveTimeline(start, end)
   }
   // 悬浮工具栏拖拽
   const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number }>(() => ({
@@ -423,10 +496,14 @@ export default function GanttView() {
 
   // 处理任务点击
   const handleTaskClick = (e: React.MouseEvent, task: typeof projectTasks[0]) => {
+    if (justResizedRef.current) {
+      justResizedRef.current = false
+      return
+    }
     if (e.ctrlKey || e.metaKey) {
       if (dragStartTask && dragStartTask !== task.id) {
         // 弹出输入延迟天数
-        const lagInput = prompt('请输入延迟约束天数（前序任务完成后需等待的天数，0 = 无延迟）：', '0')
+        const lagInput = prompt('Enter lag days (days to wait after predecessor completes, 0 = no lag):', '0')
         if (lagInput === null) {
           setDragStartTask(null)
           return
@@ -621,8 +698,8 @@ export default function GanttView() {
     e.stopPropagation()
     const tasksInBucket = regularTasks.filter((t) => t.bucketId === bucketId)
     const msg = tasksInBucket.length > 0
-      ? `该分组包含 ${tasksInBucket.length} 个任务，删除分组将同时删除所有任务。确定要删除吗？`
-      : '确定要删除这个分组吗？'
+      ? `This group contains ${tasksInBucket.length} task(s). Deleting the group will also delete all tasks. Continue?`
+      : 'Are you sure you want to delete this group?'
     if (confirm(msg)) {
       await deleteBucket(bucketId)
     }
@@ -681,15 +758,15 @@ export default function GanttView() {
 
   const handleSaveNewTask = async () => {
     if (!newTaskTitle.trim()) {
-      alert('请输入任务名称')
+      alert('Please enter a task name')
       return
     }
     if (!newTaskStartDate || !newTaskEndDate) {
-      alert('请选择开始和结束日期')
+      alert('Please select start and end dates')
       return
     }
     if (!currentProjectId) {
-      alert('请先选择一个项目')
+      alert('Please select a project first')
       setAddingTaskBucketId(null)
       return
     }
@@ -700,7 +777,7 @@ export default function GanttView() {
     const sDate = new Date(newTaskStartDate)
     const eDate = new Date(newTaskEndDate)
     if (isNaN(sDate.getTime()) || isNaN(eDate.getTime())) {
-      alert('日期格式不正确')
+      alert('Invalid date format')
       return
     }
     const tasksInBucket = regularTasks.filter((t) => t.bucketId === addingTaskBucketId)
@@ -838,6 +915,7 @@ export default function GanttView() {
       resizePreviewRef.current = null
       setResizePreview(null)
       if (preview) {
+        justResizedRef.current = true
         await updateTask(preview.taskId, { startDateTime: preview.start, dueDateTime: preview.end })
       }
     }
@@ -853,14 +931,32 @@ export default function GanttView() {
   // ── 删除任务 ──
   const handleDeleteTask = async (e: React.MouseEvent, taskId: string) => {
     e.stopPropagation()
-    if (confirm('确定要删除这个任务吗？')) {
+    if (confirm('Are you sure you want to delete this task?')) {
       await deleteTask(taskId)
     }
   }
 
+  // ── Column resize (task name ↔ progress boundary) ──
+  const handleColResizeDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    colResizeRef.current = { startX: e.clientX, startWidth: taskListWidth }
+    const onMove = (ev: MouseEvent) => {
+      if (!colResizeRef.current) return
+      const delta = ev.clientX - colResizeRef.current.startX
+      setTaskListWidth(Math.max(200, Math.min(600, colResizeRef.current.startWidth + delta)))
+    }
+    const onUp = () => {
+      colResizeRef.current = null
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [taskListWidth])
+
   // 计算依赖连线坐标 + 约束违反检测
   // SVG 从 (top: HEADER_HEIGHT, left: 0) 开始, Y 无需加偏移
-  const TASK_LIST_WIDTH = 360
+  const TASK_LIST_WIDTH = taskListWidth
   const HEADER_HEIGHT = 44 // 月(24) + 周(20)
   const dependencyLines = useMemo(() => {
     const lines: {
@@ -911,29 +1007,31 @@ export default function GanttView() {
   }, [projectTasks, getDateLeft, weekWidth, getTaskRowIndex])
 
   // 获取当前项目名称用于导出文件名
-  const currentProject = projects.find((p) => p.id === currentProjectId)
-  const projectName = currentProject?.name || '甘特图'
+  const projectName = currentProject?.name || 'Gantt Chart'
   const sanitizedProjectName = projectName.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')
 
-  // 导出处理函数
+  // 导出处理函数（懒加载 exportGantt，避免 jspdf/html2canvas 打入主包）
   const handleExportAsPNG = async () => {
     if (!ganttScrollRef.current) return
-    await exportAsImage(ganttScrollRef.current, `${sanitizedProjectName}_甘特图`, 'png', TASK_LIST_WIDTH)
+    const { exportAsImage } = await import('@/utils/exportGantt')
+    await exportAsImage(ganttScrollRef.current, `${sanitizedProjectName}_gantt`, 'png', TASK_LIST_WIDTH)
   }
 
   const handleExportAsJPEG = async () => {
     if (!ganttScrollRef.current) return
-    await exportAsImage(ganttScrollRef.current, `${sanitizedProjectName}_甘特图`, 'jpeg', TASK_LIST_WIDTH)
+    const { exportAsImage } = await import('@/utils/exportGantt')
+    await exportAsImage(ganttScrollRef.current, `${sanitizedProjectName}_gantt`, 'jpeg', TASK_LIST_WIDTH)
   }
 
   const handleExportAsPDF = async () => {
     if (!ganttScrollRef.current) return
-    await exportAsPDF(ganttScrollRef.current, `${sanitizedProjectName}_甘特图`, TASK_LIST_WIDTH)
+    const { exportAsPDF } = await import('@/utils/exportGantt')
+    await exportAsPDF(ganttScrollRef.current, `${sanitizedProjectName}_gantt`, TASK_LIST_WIDTH)
   }
 
   return (
     <>
-      <div className={`${styles.ganttView} ${resizePreview ? styles.ganttResizing : ''}`} ref={ganttRef}>
+      <div className={`${styles.ganttView} ${resizePreview ? styles.ganttResizing : ''}`} ref={ganttRef} style={{ '--task-list-width': `${TASK_LIST_WIDTH}px` } as React.CSSProperties}>
       {/* ── 单一滚动容器：同时承载左侧冻结列和右侧时间轴 ── */}
       <div className={styles.ganttScroll} ref={ganttScrollRef}>
         <div className={styles.ganttInner} style={{ width: `${TASK_LIST_WIDTH + totalWidth}px` }}>
@@ -942,8 +1040,9 @@ export default function GanttView() {
           <div className={styles.stickyHeader}>
             {/* 左侧冻结角 */}
             <div className={styles.stickyCorner}>
-              <div className={styles.headerCell}>任务名称</div>
-              <div className={styles.headerCellNarrow}>进度</div>
+              <div className={styles.headerCell}>Task Name</div>
+              <div className={styles.colResizeHandle} onMouseDown={handleColResizeDown} />
+              <div className={styles.headerCellNarrow}>Progress</div>
             </div>
             {/* 时间轴表头 */}
             <div className={styles.stickyTimelineHeader} style={{ width: `${totalWidth}px` }}>
@@ -995,10 +1094,50 @@ export default function GanttView() {
                   className={styles.todayLine}
                   style={{ left: `${index * weekWidth + weekWidth / 2}px` }}
                 >
-                  <span className={styles.todayLabel}>今天</span>
+                  <span className={styles.todayLabel}>Today</span>
                 </div>
               ) : null
             )}
+          </div>
+
+          {/* ── Vertical marker lines (full height, spanning header + data) ── */}
+          <div
+            className={styles.verticalMarkerLayer}
+            style={{
+              left: `${TASK_LIST_WIDTH}px`,
+              width: `${totalWidth}px`,
+              height: `${HEADER_HEIGHT + rowItems.length * 36}px`
+            }}
+          >
+            {/* ── 周背景网格竖线（贯穿全高）── */}
+            {weekInfo.map((week) => (
+              <div
+                key={`wgl-${week.weekNum}-${week.startIndex}`}
+                className={styles.weekGridLine}
+                style={{ left: `${week.startIndex * weekWidth}px` }}
+              />
+            ))}
+            {verticalMarkers.map((marker) => {
+              const mParts = marker.date.split('-').map(Number)
+              const markerDate = new Date(mParts[0], mParts[1] - 1, mParts[2])
+              const left = getDateLeft(markerDate)
+              if (left < 0 || left > totalWidth) return null
+              return (
+                <div
+                  key={marker.id}
+                  className={styles.verticalMarker}
+                  style={{ left: `${left}px`, '--marker-color': marker.color, '--marker-thickness': `${marker.thickness || 2}px` } as React.CSSProperties}
+                >
+                  <span className={styles.verticalMarkerLabel} style={{ background: marker.color }}>
+                    {marker.label}
+                    <button
+                      className={styles.verticalMarkerRemove}
+                      onClick={() => deleteMarker(marker.id)}
+                    >×</button>
+                  </span>
+                </div>
+              )
+            })}
           </div>
 
           {/* ── 数据行：每行同时包含左侧信息格和右侧任务条 ── */}
@@ -1026,7 +1165,7 @@ export default function GanttView() {
                       onDragStart={(e) => handleGroupDragStart(e, row.bucket.id)}
                       onDragEnd={handleGroupDragEnd}
                       onClick={(e) => e.stopPropagation()}
-                      title="拖拽排序"
+                      title="Drag to reorder"
                     >
                       ⠿
                     </span>
@@ -1046,7 +1185,7 @@ export default function GanttView() {
                       <span
                         className={styles.groupNameEditable}
                         onClick={(e) => handleGroupNameClick(e, row.bucket)}
-                        title="点击修改分组名称"
+                        title="Click to rename group"
                       >
                         {row.bucket.name}
                       </span>
@@ -1059,18 +1198,18 @@ export default function GanttView() {
                       value={bucketColor}
                       onClick={(e) => e.stopPropagation()}
                       onChange={(e) => updateBucket(row.bucket.id, { color: e.target.value })}
-                      title="修改标记颜色"
+                      title="Change marker color"
                     />
                     <button
                       className={styles.addMilestoneBtn}
                       onClick={(e) => handleStartAddMilestone(e, row.bucket.id)}
-                      title="添加里程碑节点"
+                      title="Add milestone"
                     >+</button>
                     <button
                       className={`${styles.groupActionBtn} ${styles.groupDeleteBtn}`}
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => handleDeleteGroup(e, row.bucket.id)}
-                      title="删除里程碑分组"
+                      title="Delete milestone group"
                     >×</button>
                     <span className={`${styles.groupChevron} ${collapsedBuckets.has(row.bucket.id) ? styles.groupChevronCollapsed : ''}`}>
                       ▾
@@ -1083,7 +1222,7 @@ export default function GanttView() {
                     >
                       {row.bucket.name}
                       {collapsedBuckets.has(row.bucket.id) && (
-                        <span className={styles.timelineGroupCollapsed}> · {row.tasks.length} 项已折叠</span>
+                        <span className={styles.timelineGroupCollapsed}> · {row.tasks.length} collapsed</span>
                       )}
                     </span>
                     {/* 折叠时在分组行内显示所有里程碑示意（带标签） */}
@@ -1092,16 +1231,14 @@ export default function GanttView() {
                         key={ms.id}
                         className={styles.collapsedMilestoneMarker}
                         style={{ left: `${getDateLeft(new Date(ms.startDateTime))}px` }}
-                        title={`${ms.title} · ${new Date(ms.startDateTime).toLocaleDateString('zh-CN')}`}
+                        title={`${ms.title} · ${new Date(ms.startDateTime).toLocaleDateString('en-US')}`}
                         onClick={(e) => {
                           e.stopPropagation()
                           setSelectedTaskId(ms.id)
                         }}
                       >
-                        <svg width="10" height="10" viewBox="0 0 24 24">
-                          <polygon points="12,2 22,12 12,22 2,12" fill={bucketColor} stroke={bucketColor} strokeWidth="2" />
-                        </svg>
-                        <span className={styles.collapsedMilestoneLabel}>{ms.title}</span>
+                        <div className={styles.milestoneDiamond} style={{ backgroundColor: bucketColor }} />
+                        <span className={styles.collapsedMilestoneLabel} style={{ color: bucketColor }}>{ms.title}</span>
                       </div>
                     ))}
                   </div>
@@ -1134,6 +1271,7 @@ export default function GanttView() {
                       ) : (
                         <span
                           className={`${styles.taskNameText} ${styles.milestoneNameText}`}
+                          style={{ color: msColor }}
                           onClick={(e) => handleTaskNameClick(e, row.task)}
                         >
                           {row.task.title}
@@ -1142,7 +1280,7 @@ export default function GanttView() {
                       <button
                         className={styles.taskDeleteBtn}
                         onClick={(e) => handleDeleteTask(e, row.task.id)}
-                        title="删除里程碑"
+                        title="Delete milestone"
                       >×</button>
                     </div>
                     <div className={styles.milestoneDate}>
@@ -1161,9 +1299,9 @@ export default function GanttView() {
                         <span
                           className={styles.milestoneDateText}
                           onClick={(e) => handleMilestoneDateClick(e, row.task)}
-                          title="点击修改日期"
+                          title="Click to edit date"
                         >
-                          {new Date(row.task.startDateTime).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
+                          {new Date(row.task.startDateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </span>
                       )}
                     </div>
@@ -1174,11 +1312,9 @@ export default function GanttView() {
                       style={{ left: `${getTaskPosition(row.task).left}px` }}
                       onClick={(e) => handleGanttMilestoneClick(e, row.task)}
                       onDoubleClick={() => handleTaskDoubleClick()}
-                      title={ganttEditingId === row.task.id ? undefined : `${row.task.title} · ${new Date(row.task.startDateTime).toLocaleDateString('zh-CN')} · 点击编辑`}
+                      title={ganttEditingId === row.task.id ? undefined : `${row.task.title} · ${new Date(row.task.startDateTime).toLocaleDateString('en-US')} · Click to edit`}
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" className={styles.milestoneIcon}>
-                        <polygon points="12,2 22,12 12,22 2,12" fill={msColor} stroke={msColor} strokeWidth="1.5" />
-                      </svg>
+                      <div className={`${styles.milestoneDiamond} ${styles.milestoneDiamondLg}`} style={{ backgroundColor: msColor }} />
                       {ganttEditingId === row.task.id ? (
                         <input
                           className={styles.milestoneInlineInput}
@@ -1190,7 +1326,7 @@ export default function GanttView() {
                           autoFocus
                         />
                       ) : (
-                        <span className={styles.milestoneLabel}>{row.task.title}</span>
+                        <span className={styles.milestoneLabel} style={{ color: msColor }}>{row.task.title}</span>
                       )}
                     </div>
                     {/* 里程碑垂直参考线 */}
@@ -1216,7 +1352,7 @@ export default function GanttView() {
                         value={newMilestoneTitle}
                         onChange={(e) => setNewMilestoneTitle(e.target.value)}
                         onKeyDown={handleNewMilestoneKeyDown}
-                        placeholder="里程碑名称..."
+                        placeholder="Milestone name..."
                         autoFocus
                       />
                     </div>
@@ -1232,8 +1368,8 @@ export default function GanttView() {
                   </div>
                   <div className={`${styles.timelineTaskCell} ${styles.timelineMilestoneCell}`} style={{ width: `${totalWidth}px` }}>
                     <div className={styles.addMilestoneActions}>
-                      <button className={styles.addMilestoneSave} onClick={handleSaveNewMilestone}>✓ 保存</button>
-                      <button className={styles.addMilestoneCancel} onClick={() => { setAddingMilestoneBucketId(null); setNewMilestoneTitle(''); setNewMilestoneDate('') }}>✕ 取消</button>
+                      <button className={styles.addMilestoneSave} onClick={handleSaveNewMilestone}>✓ Save</button>
+                      <button className={styles.addMilestoneCancel} onClick={() => { setAddingMilestoneBucketId(null); setNewMilestoneTitle(''); setNewMilestoneDate('') }}>✕ Cancel</button>
                     </div>
                   </div>
                 </div>
@@ -1251,7 +1387,7 @@ export default function GanttView() {
                         className={styles.milestoneColorPicker}
                         value={newMilestoneGroupColor}
                         onChange={(e) => setNewMilestoneGroupColor(e.target.value)}
-                        title="选择标记颜色"
+                        title="Choose marker color"
                       />
                       <input
                         type="text"
@@ -1259,15 +1395,15 @@ export default function GanttView() {
                         value={newMilestoneGroupName}
                         onChange={(e) => setNewMilestoneGroupName(e.target.value)}
                         onKeyDown={handleMilestoneGroupKeyDown}
-                        placeholder="里程碑分组名称..."
+                        placeholder="Milestone group name..."
                         autoFocus
                       />
                     </div>
                   </div>
                   <div className={`${styles.timelineGroupCell} ${styles.timelineMilestoneGroupCell}`} style={{ width: `${totalWidth}px` }}>
                     <div className={styles.addMilestoneActions}>
-                      <button className={styles.addMilestoneSave} onClick={handleSaveMilestoneGroup}>✓ 创建分组</button>
-                      <button className={styles.addMilestoneCancel} onClick={() => { setAddingMilestoneGroup(false); setNewMilestoneGroupName(''); setNewMilestoneGroupColor('#d83b01') }}>✕ 取消</button>
+                      <button className={styles.addMilestoneSave} onClick={handleSaveMilestoneGroup}>✓ Create Group</button>
+                      <button className={styles.addMilestoneCancel} onClick={() => { setAddingMilestoneGroup(false); setNewMilestoneGroupName(''); setNewMilestoneGroupColor('#d83b01') }}>✕ Cancel</button>
                     </div>
                   </div>
                 </div>
@@ -1296,7 +1432,7 @@ export default function GanttView() {
                       onDragStart={(e) => handleGroupDragStart(e, row.bucket.id)}
                       onDragEnd={handleGroupDragEnd}
                       onClick={(e) => e.stopPropagation()}
-                      title="拖拽排序"
+                      title="Drag to reorder"
                     >
                       ⠿
                     </span>
@@ -1306,7 +1442,7 @@ export default function GanttView() {
                       value={row.bucket.color || '#a19f9d'}
                       onClick={(e) => e.stopPropagation()}
                       onChange={(e) => updateBucket(row.bucket.id, { color: e.target.value })}
-                      title="修改分组颜色"
+                      title="Change group color"
                     />
                     {editingGroupId === row.bucket.id ? (
                       <input
@@ -1323,7 +1459,7 @@ export default function GanttView() {
                       <span
                         className={styles.groupNameEditable}
                         onClick={(e) => handleGroupNameClick(e, row.bucket)}
-                        title="点击修改分组名称"
+                        title="Click to rename group"
                       >
                         {row.bucket.name}
                       </span>
@@ -1333,13 +1469,13 @@ export default function GanttView() {
                       className={styles.groupActionBtn}
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => handleStartAddTask(e, row.bucket.id)}
-                      title="添加任务"
+                      title="Add task"
                     >+</button>
                     <button
                       className={`${styles.groupActionBtn} ${styles.groupDeleteBtn}`}
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => handleDeleteGroup(e, row.bucket.id)}
-                      title="删除分组"
+                      title="Delete group"
                     >×</button>
                     <span className={`${styles.groupChevron} ${collapsedBuckets.has(row.bucket.id) ? styles.groupChevronCollapsed : ''}`}>
                       ▾
@@ -1352,7 +1488,7 @@ export default function GanttView() {
                     >
                       {row.bucket.name}
                       {collapsedBuckets.has(row.bucket.id) && (
-                        <span className={styles.timelineGroupCollapsed}> · {row.tasks.length} 项已折叠</span>
+                        <span className={styles.timelineGroupCollapsed}> · {row.tasks.length} collapsed</span>
                       )}
                     </span>
                   </div>
@@ -1373,7 +1509,7 @@ export default function GanttView() {
                         value={newTaskTitle}
                         onChange={(e) => setNewTaskTitle(e.target.value)}
                         onKeyDown={handleNewTaskKeyDown}
-                        placeholder="任务名称..."
+                        placeholder="Task name..."
                         autoFocus
                       />
                     </div>
@@ -1384,7 +1520,7 @@ export default function GanttView() {
                         value={newTaskStartDate}
                         onChange={(e) => setNewTaskStartDate(e.target.value)}
                         onKeyDown={handleNewTaskKeyDown}
-                        title="开始日期"
+                        title="Start date"
                       />
                     </div>
                   </div>
@@ -1396,10 +1532,10 @@ export default function GanttView() {
                         value={newTaskEndDate}
                         onChange={(e) => setNewTaskEndDate(e.target.value)}
                         onKeyDown={handleNewTaskKeyDown}
-                        title="结束日期"
+                        title="End date"
                       />
-                      <button className={styles.addMilestoneSave} onClick={handleSaveNewTask}>✓ 保存</button>
-                      <button className={styles.addMilestoneCancel} onClick={() => { setAddingTaskBucketId(null); setNewTaskTitle(''); }}>✕ 取消</button>
+                      <button className={styles.addMilestoneSave} onClick={handleSaveNewTask}>✓ Save</button>
+                      <button className={styles.addMilestoneCancel} onClick={() => { setAddingTaskBucketId(null); setNewTaskTitle(''); }}>✕ Cancel</button>
                     </div>
                   </div>
                 </div>
@@ -1418,7 +1554,7 @@ export default function GanttView() {
                       value={newGroupName}
                       onChange={(e) => setNewGroupName(e.target.value)}
                       onKeyDown={handleNewGroupKeyDown}
-                      placeholder="分组名称..."
+                      placeholder="Group name..."
                       autoFocus
                     />
                     <button className={styles.addMilestoneSave} onClick={handleSaveNewGroup}>✓</button>
@@ -1471,7 +1607,7 @@ export default function GanttView() {
                       <button
                         className={styles.taskDeleteBtn}
                         onClick={(e) => handleDeleteTask(e, row.task.id)}
-                        title="删除任务"
+                        title="Delete task"
                       >×</button>
                     </div>
                     <div className={styles.taskProgress}>
@@ -1495,7 +1631,7 @@ export default function GanttView() {
                       }}
                       onClick={(e) => handleTaskClick(e, row.task)}
                       onDoubleClick={() => handleTaskDoubleClick()}
-                      title={`${row.task.title}\n${dispStart.toLocaleDateString('zh-CN')} - ${dispEnd.toLocaleDateString('zh-CN')}`}
+                      title={`${row.task.title}\n${dispStart.toLocaleDateString('en-US')} - ${dispEnd.toLocaleDateString('en-US')}`}
                     >
                       {(row.task.completedPercent || 0) > 0 && (
                         <div
@@ -1510,7 +1646,7 @@ export default function GanttView() {
                       <div
                         className={styles.taskBarResizeLeft}
                         onMouseDown={(e) => handleResizeMouseDown(e, row.task, 'left')}
-                        title="拖拽调整开始日期"
+                        title="Drag to adjust start date"
                       />
                       <span className={styles.taskBarLabel}>{row.task.title}</span>
                       {row.task.deadlineConstraint && (() => {
@@ -1518,19 +1654,23 @@ export default function GanttView() {
                         if (!refTask) return null
                         const c = row.task.deadlineConstraint!
                         return (
-                          <span className={styles.taskBarConstraint} title={`${c.type === 'before' ? '在' : '在'}${refTask.title}${c.type === 'before' ? '之前' : '之后'}${c.offsetWeeks}周`}>
+                          <span className={styles.taskBarConstraint} title={`${c.type === 'before' ? 'Before' : 'After'} ${refTask.title} by ${c.offsetWeeks} week(s)`}>
                             🔗{c.offsetWeeks}w
                           </span>
                         )
                       })()}
                       <span className={styles.taskBarDuration}>
-                        {weeks >= 1 ? `${weeks.toFixed(1).replace(/\.0$/, '')}w` : `${days}d`}
+                        {weeks >= 3 && days % 7 === 0
+                          ? `${weeks}w`
+                          : days < 21
+                          ? `${days}d`
+                          : `${weeks.toFixed(1).replace(/\.0$/, '')}w`}
                       </span>
                       {/* 右侧拖拽调整手柄 */}
                       <div
                         className={styles.taskBarResizeRight}
                         onMouseDown={(e) => handleResizeMouseDown(e, row.task, 'right')}
-                        title="拖拽调整结束日期"
+                        title="Drag to adjust end date"
                       />
                     </div>
                   </div>
@@ -1580,12 +1720,12 @@ export default function GanttView() {
                     style={{ cursor: 'pointer' }}
                     onDoubleClick={(e) => {
                       e.stopPropagation()
-                      if (confirm(`确定删除依赖：\n「${line.taskTitle}」依赖于「${line.depTaskTitle}」？`)) {
+                      if (confirm(`Delete dependency:\n"${line.taskTitle}" depends on "${line.depTaskTitle}"?`)) {
                         removeDependency(line.taskId, line.depTaskId)
                       }
                     }}
                   >
-                    <title>双击删除依赖：{line.depTaskTitle} → {line.taskTitle}{line.lagDays > 0 ? ` (delay ${line.lagDays}d)` : ''}</title>
+                    <title>Double-click to delete: {line.depTaskTitle} → {line.taskTitle}{line.lagDays > 0 ? ` (delay ${line.lagDays}d)` : ''}</title>
                   </path>
                   {/* 可见连接线 */}
                   <path
@@ -1668,7 +1808,7 @@ export default function GanttView() {
                         fontSize="8"
                         fontWeight="bold"
                       >
-                        ⚠ 差{line.delayDays}天
+                        ⚠ -{line.delayDays}d
                       </text>
                     </g>
                   )}
@@ -1696,58 +1836,58 @@ export default function GanttView() {
         </div>
         <div className={styles.zoomSeparator}></div>
         {/* 时间轴范围选择 */}
-        <label className={styles.dateRangeLabel}>起始</label>
+        <label className={styles.dateRangeLabel}>Start</label>
         <input
           type="date"
           className={styles.dateRangeInput}
           value={timelineStart}
-          onChange={(e) => setTimelineStart(e.target.value)}
-          title="时间轴起始日期"
+          onChange={(e) => { setTimelineStart(e.target.value); saveTimeline(e.target.value, timelineEnd) }}
+          title="Timeline start date"
         />
-        <label className={styles.dateRangeLabel}>结束</label>
+        <label className={styles.dateRangeLabel}>End</label>
         <input
           type="date"
           className={styles.dateRangeInput}
           value={timelineEnd}
-          onChange={(e) => setTimelineEnd(e.target.value)}
-          title="时间轴结束日期"
+          onChange={(e) => { setTimelineEnd(e.target.value); saveTimeline(timelineStart, e.target.value) }}
+          title="Timeline end date"
         />
-        <button className={styles.autoFitBtn} onClick={handleAutoFitTimeline} title="从任务自动适配时间范围">
+        <button className={styles.autoFitBtn} onClick={handleAutoFitTimeline} title="Auto-fit timeline from tasks">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 21l-4.35-4.35"/><circle cx="11" cy="11" r="8"/><path d="M11 8v6M8 11h6"/></svg>
-          自适应
+          Auto Fit
         </button>
         <div className={styles.zoomSeparator}></div>
-        <button className={styles.zoomBtn} onClick={handleCollapseAll} title="全部折叠">
+        <button className={styles.zoomBtn} onClick={handleCollapseAll} title="Collapse all">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M20 6l-3 3-3-3" fill="currentColor" stroke="none"/></svg>
         </button>
-        <button className={styles.zoomBtn} onClick={handleExpandAll} title="全部展开">
+        <button className={styles.zoomBtn} onClick={handleExpandAll} title="Expand all">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M20 6l-3-3-3 3" fill="currentColor" stroke="none"/></svg>
         </button>
         <div className={styles.zoomSeparator}></div>
-        <button className={styles.zoomBtn} onClick={handleZoomOut} disabled={zoomIndex === 0} title="缩小">
+        <button className={styles.zoomBtn} onClick={handleZoomOut} disabled={zoomIndex === 0} title="Zoom out">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
-        <button className={styles.zoomFitBtn} onClick={handleZoomFit} title="适应屏幕">
+        <button className={styles.zoomFitBtn} onClick={handleZoomFit} title="Fit to screen">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="3" y="3" width="18" height="18" rx="2"/>
             <polyline points="15 3 15 9 21 9"/>
             <polyline points="9 21 9 15 3 15"/>
           </svg>
         </button>
-        <button className={styles.zoomBtn} onClick={handleZoomIn} disabled={zoomIndex === ZOOM_LEVELS.length - 1} title="放大">
+        <button className={styles.zoomBtn} onClick={handleZoomIn} disabled={zoomIndex === ZOOM_LEVELS.length - 1} title="Zoom in">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
         <span className={styles.zoomLevel}>{weekWidth}px/d</span>
         <div className={styles.zoomSeparator}></div>
         {/* 导出按钮 */}
-        <button className={styles.exportBtn} onClick={handleExportAsPNG} title="导出为 PNG 图片">
+        <button className={styles.exportBtn} onClick={handleExportAsPNG} title="Export as PNG">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
             <circle cx="8.5" cy="8.5" r="1.5"/>
             <polyline points="21 15 16 10 5 21"/>
           </svg>
         </button>
-        <button className={styles.exportBtn} onClick={handleExportAsJPEG} title="导出为 JPEG 图片">
+        <button className={styles.exportBtn} onClick={handleExportAsJPEG} title="Export as JPEG">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
             <circle cx="8.5" cy="8.5" r="1.5"/>
@@ -1755,7 +1895,7 @@ export default function GanttView() {
             <path d="M11 10v9"/>
           </svg>
         </button>
-        <button className={styles.exportBtn} onClick={handleExportAsPDF} title="导出为 PDF 文档">
+        <button className={styles.exportBtn} onClick={handleExportAsPDF} title="Export as PDF">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
@@ -1763,6 +1903,104 @@ export default function GanttView() {
             <path d="M9 15l3 3 3-3"/>
           </svg>
         </button>
+        <div className={styles.zoomSeparator}></div>
+        {/* Vertical marker lines */}
+        <div className={styles.markerSection}>
+          <button
+            className={`${styles.exportBtn} ${verticalMarkers.length > 0 ? styles.markerActive : ''}`}
+            onClick={() => setAddingMarker(!addingMarker)}
+            title="Add vertical marker line"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="12" y1="2" x2="12" y2="22"/>
+              <path d="M8 6l4-4 4 4"/>
+              <line x1="5" y1="22" x2="19" y2="22"/>
+            </svg>
+          </button>
+          {verticalMarkers.length > 0 && (
+            <span className={styles.markerBadge}>{verticalMarkers.length}</span>
+          )}
+          {addingMarker && (
+            <div className={styles.markerPopover}>
+              <div className={styles.markerPopoverTitle}>Add Marker Line</div>
+              <div className={styles.markerPopoverRow}>
+                <input
+                  type="text"
+                  className={styles.markerInput}
+                  value={newMarkerLabel}
+                  onChange={(e) => setNewMarkerLabel(e.target.value)}
+                  placeholder="Label (e.g. SOP)"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (newMarkerLabel.trim() && newMarkerDate && currentProjectId) {
+                        addMarker({ projectId: currentProjectId, date: newMarkerDate, label: newMarkerLabel.trim(), color: newMarkerColor, thickness: newMarkerThickness })
+                        setNewMarkerLabel('')
+                        setNewMarkerDate('')
+                        setAddingMarker(false)
+                      }
+                    } else if (e.key === 'Escape') {
+                      setAddingMarker(false)
+                    }
+                  }}
+                  autoFocus
+                />
+                <input
+                  type="date"
+                  className={styles.markerDateInput}
+                  value={newMarkerDate}
+                  onChange={(e) => setNewMarkerDate(e.target.value)}
+                />
+              </div>
+              <div className={styles.markerPopoverRow}>
+                <label className={styles.markerFieldLabel}>Color</label>
+                <input
+                  type="color"
+                  className={styles.markerColorInput}
+                  value={newMarkerColor}
+                  onChange={(e) => setNewMarkerColor(e.target.value)}
+                />
+                <label className={styles.markerFieldLabel}>Width</label>
+                <select
+                  className={styles.markerThicknessSelect}
+                  value={newMarkerThickness}
+                  onChange={(e) => setNewMarkerThickness(Number(e.target.value))}
+                >
+                  <option value={1}>1px</option>
+                  <option value={2}>2px</option>
+                  <option value={3}>3px</option>
+                  <option value={4}>4px</option>
+                  <option value={5}>5px</option>
+                </select>
+              </div>
+              <div className={styles.markerPopoverActions}>
+                <button
+                  className={styles.markerSaveBtn}
+                  onClick={() => {
+                    if (newMarkerLabel.trim() && newMarkerDate && currentProjectId) {
+                      addMarker({ projectId: currentProjectId, date: newMarkerDate, label: newMarkerLabel.trim(), color: newMarkerColor, thickness: newMarkerThickness })
+                      setNewMarkerLabel('')
+                      setNewMarkerDate('')
+                      setAddingMarker(false)
+                    }
+                  }}
+                >Add</button>
+                <button className={styles.markerCancelBtn} onClick={() => setAddingMarker(false)}>Cancel</button>
+              </div>
+              {verticalMarkers.length > 0 && (
+                <div className={styles.markerList}>
+                  {verticalMarkers.map((m) => (
+                    <div key={m.id} className={styles.markerListItem}>
+                      <span className={styles.markerListColor} style={{ backgroundColor: m.color, width: `${m.thickness || 2}px` }} />
+                      <span className={styles.markerListLabel}>{m.label}</span>
+                      <span className={styles.markerListDate}>{m.date}</span>
+                      <button className={styles.markerListRemove} onClick={() => deleteMarker(m.id)}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 操作面板 */}
@@ -1773,27 +2011,27 @@ export default function GanttView() {
         <button
           className={styles.actionPanelToggle}
           onClick={() => setHintsCollapsed((v) => !v)}
-          title={hintsCollapsed ? '展开操作面板' : '收起操作面板'}
+          title={hintsCollapsed ? 'Expand action panel' : 'Collapse action panel'}
         >
           <span className={`${styles.actionPanelArrow} ${hintsCollapsed ? styles.actionPanelArrowCollapsed : ''}`}>▾</span>
-          <span className={styles.actionPanelTitle}>操作</span>
+          <span className={styles.actionPanelTitle}>Actions</span>
         </button>
         {!hintsCollapsed && (
           <div className={styles.actionPanelBody}>
             <button className={styles.addGroupFloatBtn} onClick={handleStartAddGroup}>
-              + 新增分组
+              + New Group
             </button>
             <button className={styles.addGroupFloatBtn} onClick={handleStartAddMilestoneGroup}>
-              + 新增里程碑分组
+              + New Milestone Group
             </button>
             <div className={styles.hint}>
-              <span className={styles.hintKey}>点击</span> 编辑任务
+              <span className={styles.hintKey}>Click</span> Edit task
             </div>
             <div className={styles.hint}>
-              <span className={styles.hintKey}>Ctrl + 点击</span> 创建依赖（可设延迟约束）
+              <span className={styles.hintKey}>Ctrl + Click</span> Create dependency (with lag)
             </div>
             <div className={styles.hint}>
-              <span className={styles.hintKey}>双击连线</span> 删除依赖
+              <span className={styles.hintKey}>Double-click line</span> Delete dependency
             </div>
           </div>
         )}

@@ -34,13 +34,13 @@ export async function initializeBrakingProject() {
   
   // 创建分组
   const buckets = [
-    { id: `bucket_req_${projectId}`, name: '📋 需求阶段', color: '#3b82f6', order: 1, bucketType: 'task' as const },
-    { id: `bucket_design_${projectId}`, name: '🏗️ 系统设计', color: '#8b5cf6', order: 2, bucketType: 'task' as const },
-    { id: `bucket_hw_${projectId}`, name: '🔧 硬件开发', color: '#f59e0b', order: 3, bucketType: 'task' as const },
-    { id: `bucket_mcal_${projectId}`, name: '⚙️ MCAL开发', color: '#10b981', order: 4, bucketType: 'task' as const },
-    { id: `bucket_algo_${projectId}`, name: '🧮 算法开发', color: '#ec4899', order: 5, bucketType: 'task' as const },
-    { id: `bucket_test_${projectId}`, name: '🔍 测试验证', color: '#ef4444', order: 6, bucketType: 'task' as const },
-    { id: `bucket_milestone_${projectId}`, name: '🎯 项目里程碑', color: '#d83b01', order: 7, bucketType: 'milestone' as const }
+    { id: `bucket_req_${projectId}`, projectId, name: '📋 需求阶段', color: '#3b82f6', order: 1, bucketType: 'task' as const },
+    { id: `bucket_design_${projectId}`, projectId, name: '🏗️ 系统设计', color: '#8b5cf6', order: 2, bucketType: 'task' as const },
+    { id: `bucket_hw_${projectId}`, projectId, name: '🔧 硬件开发', color: '#f59e0b', order: 3, bucketType: 'task' as const },
+    { id: `bucket_mcal_${projectId}`, projectId, name: '⚙️ MCAL开发', color: '#10b981', order: 4, bucketType: 'task' as const },
+    { id: `bucket_algo_${projectId}`, projectId, name: '🧮 算法开发', color: '#ec4899', order: 5, bucketType: 'task' as const },
+    { id: `bucket_test_${projectId}`, projectId, name: '🔍 测试验证', color: '#ef4444', order: 6, bucketType: 'task' as const },
+    { id: `bucket_milestone_${projectId}`, projectId, name: '🎯 项目里程碑', color: '#d83b01', order: 7, bucketType: 'milestone' as const }
   ];
   
   for (const bucket of buckets) {

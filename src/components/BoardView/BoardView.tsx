@@ -9,9 +9,9 @@ export default function BoardView() {
 
   const statusOrder = ['NotStarted', 'InProgress', 'Completed']
   const statusNames: Record<string, string> = {
-    NotStarted: '未开始',
-    InProgress: '进行中',
-    Completed: '已完成'
+    NotStarted: 'Not Started',
+    InProgress: 'In Progress',
+    Completed: 'Completed'
   }
 
   return (
@@ -44,7 +44,7 @@ export default function BoardView() {
                     )}
                     <div className={styles.taskMeta}>
                       <div className={styles.taskDates}>
-                        {new Date(task.startDateTime).toLocaleDateString('zh-CN')} - {new Date(task.dueDateTime).toLocaleDateString('zh-CN')}
+                        {new Date(task.startDateTime).toLocaleDateString('en-US')} - {new Date(task.dueDateTime).toLocaleDateString('en-US')}
                       </div>
                     </div>
                   </div>

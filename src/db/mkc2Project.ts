@@ -37,21 +37,21 @@ export async function initializeMKC2Project() {
   // 创建分组 - 按制动系统开发阶段组织
   const buckets = [
     // 系统需求
-    { id: `bucket_req_${projectId}`, name: '📋 系统需求', color: '#8b5cf6', order: 1, bucketType: 'task' as const },
+    { id: `bucket_req_${projectId}`, projectId, name: '📋 系统需求', color: '#8b5cf6', order: 1, bucketType: 'task' as const },
     // 系统设计
-    { id: `bucket_design_${projectId}`, name: '🏗️ 系统设计', color: '#3b82f6', order: 2, bucketType: 'task' as const },
+    { id: `bucket_design_${projectId}`, projectId, name: '🏗️ 系统设计', color: '#3b82f6', order: 2, bucketType: 'task' as const },
     // 硬件开发
-    { id: `bucket_hw_${projectId}`, name: '🔩 硬件开发', color: '#f59e0b', order: 3, bucketType: 'task' as const },
+    { id: `bucket_hw_${projectId}`, projectId, name: '🔩 硬件开发', color: '#f59e0b', order: 3, bucketType: 'task' as const },
     // 软件开发
-    { id: `bucket_sw_${projectId}`, name: '💻 软件开发', color: '#10b981', order: 4, bucketType: 'task' as const },
+    { id: `bucket_sw_${projectId}`, projectId, name: '💻 软件开发', color: '#10b981', order: 4, bucketType: 'task' as const },
     // 标定匹配
-    { id: `bucket_cali_${projectId}`, name: '⚖️ 标定匹配', color: '#ec4899', order: 5, bucketType: 'task' as const },
+    { id: `bucket_cali_${projectId}`, projectId, name: '⚖️ 标定匹配', color: '#ec4899', order: 5, bucketType: 'task' as const },
     // 测试验证
-    { id: `bucket_test_${projectId}`, name: '🔍 测试验证', color: '#ef4444', order: 6, bucketType: 'task' as const },
+    { id: `bucket_test_${projectId}`, projectId, name: '🔍 测试验证', color: '#ef4444', order: 6, bucketType: 'task' as const },
     // 量产准备
-    { id: `bucket_prod_${projectId}`, name: '🏭 量产准备', color: '#22c55e', order: 7, bucketType: 'task' as const },
+    { id: `bucket_prod_${projectId}`, projectId, name: '🏭 量产准备', color: '#22c55e', order: 7, bucketType: 'task' as const },
     // 里程碑
-    { id: `bucket_milestone_${projectId}`, name: '🎯 关键里程碑', color: '#d83b01', order: 8, bucketType: 'milestone' as const }
+    { id: `bucket_milestone_${projectId}`, projectId, name: '🎯 关键里程碑', color: '#d83b01', order: 8, bucketType: 'milestone' as const }
   ];
   
   for (const bucket of buckets) {

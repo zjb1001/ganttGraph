@@ -344,8 +344,10 @@ export function convertDecomposedTasks(
   projectId: string,
   buckets: Bucket[]
 ): Array<Partial<Task>> {
+  // 仅在当前项目内匹配分组，避免跨项目耦合
+  const projectBuckets = buckets.filter(b => b.projectId === projectId);
   return decomposedTasks.map((task, index) => {
-    const bucket = buckets.find(b => b.name === task.phase) || buckets[0];
+    const bucket = projectBuckets.find(b => b.name === task.phase) || projectBuckets[0];
     
     return {
       projectId,

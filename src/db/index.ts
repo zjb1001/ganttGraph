@@ -1,5 +1,5 @@
 import Dexie, { Table } from 'dexie'
-import { Task, Project, Bucket, User, Label } from '@/types'
+import { Task, Project, Bucket, User, Label, VerticalMarker } from '@/types'
 
 /**
  * GanttGraph 本地数据库
@@ -11,6 +11,7 @@ export class GanttDatabase extends Dexie {
   buckets!: Table<Bucket>
   users!: Table<User>
   labels!: Table<Label>
+  verticalMarkers!: Table<VerticalMarker>
 
   constructor() {
     super('GanttGraphDB')
@@ -22,6 +23,38 @@ export class GanttDatabase extends Dexie {
       buckets: 'id, order',
       users: 'id',
       labels: 'id'
+    })
+
+    this.version(2).stores({
+      tasks: 'id, projectId, bucketId, startDateTime, dueDateTime, status, priority, order',
+      projects: 'id, createdAt, updatedAt',
+      buckets: 'id, order',
+      users: 'id',
+      labels: 'id',
+      verticalMarkers: 'id, projectId'
+    })
+
+    // v3: 给 buckets 增加 projectId，修复不同项目分组相互耦合的问题
+    this.version(3).stores({
+      tasks: 'id, projectId, bucketId, startDateTime, dueDateTime, status, priority, order',
+      projects: 'id, createdAt, updatedAt',
+      buckets: 'id, projectId, order',
+      users: 'id',
+      labels: 'id',
+      verticalMarkers: 'id, projectId'
+    }).upgrade(async (tx) => {
+      // 回填 projectId：根据引用该 bucket 的任务推断其所属项目
+      const tasks = await tx.table('tasks').toArray()
+      const bucketToProject = new Map<string, string>()
+      for (const t of tasks) {
+        if (t.bucketId && t.projectId && !bucketToProject.has(t.bucketId)) {
+          bucketToProject.set(t.bucketId, t.projectId)
+        }
+      }
+      await tx.table('buckets').toCollection().modify((bucket: Bucket) => {
+        // 无任务引用的孤儿 bucket 保持空 projectId（自然从所有项目隐藏）
+        bucket.projectId = bucketToProject.get(bucket.id) || ''
+      })
     })
   }
 
@@ -95,6 +128,10 @@ export class GanttDatabase extends Dexie {
     return await this.buckets.orderBy('order').toArray()
   }
 
+  async getBucketsByProject(projectId: string): Promise<Bucket[]> {
+    return await this.buckets.where('projectId').equals(projectId).sortBy('order')
+  }
+
   async addBucket(bucket: Bucket): Promise<string> {
     return await this.buckets.add(bucket)
   }
@@ -129,6 +166,26 @@ export class GanttDatabase extends Dexie {
   async upsertLabel(label: Label): Promise<string> {
     await this.labels.put(label)
     return label.id
+  }
+
+  // ============================================
+  // 垂直标记线操作
+  // ============================================
+
+  async getMarkersByProject(projectId: string): Promise<VerticalMarker[]> {
+    return await this.verticalMarkers.where('projectId').equals(projectId).toArray()
+  }
+
+  async addMarker(marker: VerticalMarker): Promise<string> {
+    return await this.verticalMarkers.add(marker)
+  }
+
+  async updateMarker(markerId: string, updates: Partial<VerticalMarker>): Promise<number> {
+    return await this.verticalMarkers.update(markerId, updates)
+  }
+
+  async deleteMarker(markerId: string): Promise<void> {
+    await this.verticalMarkers.delete(markerId)
   }
 }
 

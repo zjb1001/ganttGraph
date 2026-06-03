@@ -50,9 +50,9 @@ export default function AIAssistantView() {
     const bus = globalMessageBus;
     const manager = new CollaborationManager(bus);
     const pmAgent = new ProjectManagerAgent('pm_001', bus);
-    const devMCAL = new DeveloperAgent('dev_mcal', 'MCAL工程师', bus, ['C', 'MCAL', 'ADC', 'PWM']);
-    const devAlgo = new DeveloperAgent('dev_algo', '算法工程师', bus, ['C', 'MATLAB', '控制算法']);
-    const testAgent = new TesterAgent('test_001', '测试工程师', bus);
+    const devMCAL = new DeveloperAgent('dev_mcal', 'MCAL Engineer', bus, ['C', 'MCAL', 'ADC', 'PWM']);
+    const devAlgo = new DeveloperAgent('dev_algo', 'Algorithm Engineer', bus, ['C', 'MATLAB', 'Control']);
+    const testAgent = new TesterAgent('test_001', 'Test Engineer', bus);
     const resourceAgent = new ResourceSchedulerAgent('res_001', bus);
     const riskAgent = new RiskMonitorAgent('risk_001', bus);
     [pmAgent, devMCAL, devAlgo, testAgent, resourceAgent, riskAgent].forEach(a => {
@@ -131,7 +131,7 @@ export default function AIAssistantView() {
       const needsConfirmation = response.requiresConfirmation && (response.actions?.length ?? 0) > 0;
       if (needsConfirmation) {
         setPendingResponse(response);
-        let confirmationText = response.message + '\n\n即将执行以下操作：';
+        let confirmationText = response.message + '\n\nAbout to execute the following actions:';
         if (response.actions) confirmationText += '\n' + response.actions.map(a => `⚠️ ${a.description}`).join('\n');
         addAssistantMessage(confirmationText, { pendingActions: response.actions });
         setIsProcessing(false);
@@ -141,11 +141,11 @@ export default function AIAssistantView() {
       addAssistantMessage(response.message, { actions: actionResults.length > 0 ? actionResults : undefined });
       if (response.needs_clarification && response.clarification_questions?.length > 0) {
         setTimeout(() => {
-          addAssistantMessage('请回答以下问题以便我更好地帮助你：\n' + response.clarification_questions.map((q: string, i: number) => `${i + 1}. ${q}`).join('\n'));
+          addAssistantMessage('Please answer the following questions so I can help you better:\n' + response.clarification_questions.map((q: string, i: number) => `${i + 1}. ${q}`).join('\n'));
         }, 500);
       }
     } catch (error) {
-      addAssistantMessage(`抱歉，发生了错误：${error instanceof Error ? error.message : '未知错误'}`);
+      addAssistantMessage(`Sorry, an error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsProcessing(false);
     }
@@ -163,18 +163,18 @@ export default function AIAssistantView() {
         return newMessages;
       });
     } catch (error) {
-      addAssistantMessage(`执行失败：${error instanceof Error ? error.message : '未知错误'}`);
+      addAssistantMessage(`Execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally { setIsProcessing(false); setPendingResponse(null); }
   };
 
-  const handleCancelAction = () => { setPendingResponse(null); addAssistantMessage('已取消操作'); };
+  const handleCancelAction = () => { setPendingResponse(null); addAssistantMessage('Action cancelled'); };
 
   // ---- Action buttons ---- 
   const handleDecompose = async () => {
-    if (!inputValue.trim()) { addSystemMessage('⚠️ 请先在输入框中描述项目需求，再点击「智能分解」'); return; }
+    if (!inputValue.trim()) { addSystemMessage('⚠️ Please describe project requirements in the input box first, then click "Smart Decompose"'); return; }
     const description = inputValue.trim();
     setInputValue('');
-    setMessages(prev => [...prev, { role: 'user', content: `🧩 智能分解: ${description}`, timestamp: new Date() }]);
+    setMessages(prev => [...prev, { role: 'user', content: `🧩 Smart Decompose: ${description}`, timestamp: new Date() }]);
     setIsProcessing(true);
     try {
       const response = await decomposeProject(description);
@@ -183,9 +183,9 @@ export default function AIAssistantView() {
           const phaseBuckets = new Map<string, string>();
           for (const task of response.tasks) {
             if (!phaseBuckets.has(task.phase)) {
-              const existingBucket = buckets.find(b => b.name === task.phase);
+              const existingBucket = buckets.find(b => b.name === task.phase && b.projectId === currentProjectId);
               if (existingBucket) { phaseBuckets.set(task.phase, existingBucket.id); }
-              else { const newBucket = await addBucket({ name: task.phase, order: phaseBuckets.size }); phaseBuckets.set(task.phase, newBucket.id); }
+              else { const newBucket = await addBucket({ name: task.phase, order: phaseBuckets.size, projectId: currentProjectId }); phaseBuckets.set(task.phase, newBucket.id); }
             }
             await addTask({
               title: task.title, startDateTime: new Date(task.start_date), dueDateTime: new Date(task.end_date),
@@ -196,57 +196,57 @@ export default function AIAssistantView() {
           }
         }
         addAssistantMessage(
-          `✅ ${response.message}\n\n📊 分解结果: ${response.phases?.length || 0} 个阶段, ${response.tasks.length} 个任务, 工期 ${response.estimated_duration_days} 天, 置信度 ${Math.round(response.confidence * 100)}%`
+          `✅ ${response.message}\n\n📊 Result: ${response.phases?.length || 0} phases, ${response.tasks.length} tasks, duration ${response.estimated_duration_days} days, confidence ${Math.round(response.confidence * 100)}%`
         );
-      } else { addAssistantMessage(`❌ ${response.message || '分解失败'}`); }
-    } catch (err) { addAssistantMessage(`❌ ${err instanceof Error ? err.message : '请求失败，请检查AI服务是否运行'}`); }
+      } else { addAssistantMessage(`❌ ${response.message || 'Decomposition failed'}`); }
+    } catch (err) { addAssistantMessage(`❌ ${err instanceof Error ? err.message : 'Request failed, please check if the AI service is running'}`); }
     finally { setIsProcessing(false); }
   };
 
   const handleAnalyzeRisks = async () => {
-    if (tasks.length === 0) { addSystemMessage('⚠️ 当前项目没有任务可分析'); return; }
-    addSystemMessage('⚠️ 正在分析项目风险...');
+    if (tasks.length === 0) { addSystemMessage('⚠️ No tasks to analyze in the current project'); return; }
+    addSystemMessage('⚠️ Analyzing project risks...');
     setIsProcessing(true);
     try {
       const response = await analyzeProjectRisks(tasks);
       if (response.success) {
         addAssistantMessage(
-          `⚠️ ${response.message}\n\n🔴 严重: ${response.risk_summary?.critical || 0}  🟠 高风险: ${response.risk_summary?.high || 0}  📊 总风险数: ${response.risks?.length || 0}`
+          `⚠️ ${response.message}\n\n🔴 Critical: ${response.risk_summary?.critical || 0}  🟠 High: ${response.risk_summary?.high || 0}  📊 Total risks: ${response.risks?.length || 0}`
         );
-      } else { addAssistantMessage(`❌ ${response.message || '分析失败'}`); }
-    } catch (err) { addAssistantMessage(`❌ ${err instanceof Error ? err.message : '请求失败'}`); }
+      } else { addAssistantMessage(`❌ ${response.message || 'Analysis failed'}`); }
+    } catch (err) { addAssistantMessage(`❌ ${err instanceof Error ? err.message : 'Request failed'}`); }
     finally { setIsProcessing(false); }
   };
 
   const handlePredict = async () => {
-    if (tasks.length === 0) { addSystemMessage('⚠️ 当前项目没有任务可预测'); return; }
-    addSystemMessage('🔮 正在预测进度...');
+    if (tasks.length === 0) { addSystemMessage('⚠️ No tasks to predict in the current project'); return; }
+    addSystemMessage('🔮 Predicting schedule...');
     setIsProcessing(true);
     try {
       const response = await predictSchedule(tasks);
       if (response.success && response.prediction) {
         addAssistantMessage(
-          `🔮 进度预测结果\n\n📅 预计完成: ${response.prediction.predicted_end_date}\n📊 置信度: ${Math.round(response.prediction.confidence * 100)}%\n⚠️ 延期概率: ${Math.round(response.prediction.delay_probability * 100)}%`
+          `🔮 Schedule Prediction\n\n📅 Expected completion: ${response.prediction.predicted_end_date}\n📊 Confidence: ${Math.round(response.prediction.confidence * 100)}%\n⚠️ Delay probability: ${Math.round(response.prediction.delay_probability * 100)}%`
         );
-      } else { addAssistantMessage(`❌ ${response.message || '预测失败'}`); }
-    } catch (err) { addAssistantMessage(`❌ ${err instanceof Error ? err.message : '请求失败'}`); }
+      } else { addAssistantMessage(`❌ ${response.message || 'Prediction failed'}`); }
+    } catch (err) { addAssistantMessage(`❌ ${err instanceof Error ? err.message : 'Request failed'}`); }
     finally { setIsProcessing(false); }
   };
 
   const handleDailyStandup = async () => {
-    if (!collabManager) { addSystemMessage('⚠️ 多Agent系统未初始化'); return; }
-    addSystemMessage('📅 正在执行每日站会...');
+    if (!collabManager) { addSystemMessage('⚠️ Multi-agent system not initialized'); return; }
+    addSystemMessage('📅 Running daily standup...');
     setIsProcessing(true);
     try {
       const report = await collabManager.runDailyStandup();
-      addAssistantMessage(`📅 每日站会报告\n\n${report.summary}`);
-    } catch (err) { addAssistantMessage(`❌ 站会执行失败: ${err instanceof Error ? err.message : '未知错误'}`); }
+      addAssistantMessage(`📅 Daily Standup Report\n\n${report.summary}`);
+    } catch (err) { addAssistantMessage(`❌ Standup failed: ${err instanceof Error ? err.message : 'Unknown error'}`); }
     finally { setIsProcessing(false); }
   };
 
   const handleRiskScan = async () => {
-    if (!currentProjectId || tasks.length === 0) { addSystemMessage('⚠️ 当前项目没有任务可扫描'); return; }
-    addSystemMessage('🛡️ 正在扫描延期风险...');
+    if (!currentProjectId || tasks.length === 0) { addSystemMessage('⚠️ No tasks to scan in the current project'); return; }
+    addSystemMessage('🛡️ Scanning for delay risks...');
     setIsProcessing(true);
     try {
       const context = {
@@ -256,22 +256,22 @@ export default function AIAssistantView() {
       };
       const result = await adaptiveEngine.runAdaptiveCycle(context.tasks, context, { autoApply: false });
       if (result.detected && result.delays.length > 0) {
-        const delayInfo = result.delays.map((d: any) => `  🚨 ${d.taskName}: 延期 ${d.delayDays} 天 (${d.severity})`).join('\n');
+        const delayInfo = result.delays.map((d: any) => `  🚨 ${d.taskName}: delayed ${d.delayDays} days (${d.severity})`).join('\n');
         const planInfo = result.plans.length > 0
-          ? '\n\n💡 推荐方案:\n' + result.plans.map((p: any) => `  • ${p.name}: 节省 ${p.impact.timeSave} 天 (成本 +${p.impact.cost}%, 风险 +${p.impact.risk}%)`).join('\n')
+          ? '\n\n💡 Recommended plans:\n' + result.plans.map((p: any) => `  • ${p.name}: save ${p.impact.timeSave} days (cost +${p.impact.cost}%, risk +${p.impact.risk}%)`).join('\n')
           : '';
-        addAssistantMessage(`🛡️ 延期风险扫描完成\n\n${delayInfo}${planInfo}\n\n建议: ${result.recommendation}`);
-      } else { addAssistantMessage('✅ 延期风险扫描完成，项目按计划进行，暂无延期风险。'); }
-    } catch (err) { addAssistantMessage(`❌ 风险扫描失败: ${err instanceof Error ? err.message : '未知错误'}`); }
+        addAssistantMessage(`🛡️ Delay Risk Scan Complete\n\n${delayInfo}${planInfo}\n\nSuggestion: ${result.recommendation}`);
+      } else { addAssistantMessage('✅ Delay risk scan complete. Project is on track, no delay risks detected.'); }
+    } catch (err) { addAssistantMessage(`❌ Risk scan failed: ${err instanceof Error ? err.message : 'Unknown error'}`); }
     finally { setIsProcessing(false); }
   };
 
   const quickCommands = [
-    { label: '添加任务', text: '添加一个任务叫「API开发」，下周一开始，持续5天' },
-    { label: '改进度', text: '把API开发进度改成50%' },
-    { label: '建里程碑', text: '创建一个里程碑叫「项目发布」在3月15日' },
-    { label: '建分组', text: '创建里程碑分组叫「发布计划」' },
-    { label: '推迟任务', text: '将开发分组中的任务全部推迟2周' },
+    { label: 'Add Task', text: 'Add a task called "API Development", starting next Monday, lasting 5 days' },
+    { label: 'Update Progress', text: 'Set API Development progress to 50%' },
+    { label: 'Add Milestone', text: 'Create a milestone called "Project Release" on March 15' },
+    { label: 'Add Group', text: 'Create a milestone group called "Release Plan"' },
+    { label: 'Delay Tasks', text: 'Delay all tasks in the Development group by 2 weeks' },
   ];
 
   const renderContent = (content: string) =>
@@ -286,40 +286,40 @@ export default function AIAssistantView() {
         {messages.length === 0 && (
           <div className={styles.chatWelcome}>
             <div className={styles.chatWelcomeTitle}>
-              ✨ AI 助手
-              {isServiceAvailable === false && <span style={{ color: '#ef4444', fontSize: 12, marginLeft: 8 }}>（服务离线）</span>}
+              ✨ AI Assistant
+              {isServiceAvailable === false && <span style={{ color: '#ef4444', fontSize: 12, marginLeft: 8 }}>(Service Offline)</span>}
             </div>
-            <div className={styles.chatWelcomeSubtitle}>在下方输入自然语言指令，或点击功能按钮快速操作</div>
+            <div className={styles.chatWelcomeSubtitle}>Enter natural language commands below, or click feature buttons for quick actions</div>
             <div className={styles.welcomeFeatures}>
               <div className={styles.welcomeFeature}>
                 <span className={styles.welcomeFeatureIcon}>💬</span>
-                <div><div className={styles.welcomeFeatureTitle}>自然语言对话</div><div className={styles.welcomeFeatureDesc}>直接描述你想做的事</div></div>
+                <div><div className={styles.welcomeFeatureTitle}>Natural Language Chat</div><div className={styles.welcomeFeatureDesc}>Describe what you want to do</div></div>
               </div>
               <div className={styles.welcomeFeature}>
                 <span className={styles.welcomeFeatureIcon}>🧩</span>
-                <div><div className={styles.welcomeFeatureTitle}>智能分解</div><div className={styles.welcomeFeatureDesc}>输入需求后点击按钮</div></div>
+                <div><div className={styles.welcomeFeatureTitle}>Smart Decompose</div><div className={styles.welcomeFeatureDesc}>Enter requirements then click</div></div>
               </div>
               <div className={styles.welcomeFeature}>
                 <span className={styles.welcomeFeatureIcon}>⚠️</span>
-                <div><div className={styles.welcomeFeatureTitle}>风险分析</div><div className={styles.welcomeFeatureDesc}>一键分析项目风险</div></div>
+                <div><div className={styles.welcomeFeatureTitle}>Risk Analysis</div><div className={styles.welcomeFeatureDesc}>One-click project risk analysis</div></div>
               </div>
               <div className={styles.welcomeFeature}>
                 <span className={styles.welcomeFeatureIcon}>🔮</span>
-                <div><div className={styles.welcomeFeatureTitle}>进度预测</div><div className={styles.welcomeFeatureDesc}>预测项目完成日期</div></div>
+                <div><div className={styles.welcomeFeatureTitle}>Schedule Prediction</div><div className={styles.welcomeFeatureDesc}>Predict project completion date</div></div>
               </div>
             </div>
           </div>
         )}
         {messages.map((msg, idx) => (
           <div key={idx} className={`${styles.chatMessage} ${msg.role === 'user' ? styles.chatMessageUser : msg.role === 'system' ? styles.chatMessageSystem : styles.chatMessageAssistant}`}>
-            {msg.role === 'assistant' && <div className={styles.chatAvatar} title="AI 助手">🤖</div>}
-            {msg.role === 'system' && <div className={styles.chatAvatar} title="系统">⚙️</div>}
+            {msg.role === 'assistant' && <div className={styles.chatAvatar} title="AI Assistant">🤖</div>}
+            {msg.role === 'system' && <div className={styles.chatAvatar} title="System">⚙️</div>}
             <div className={styles.chatBubble}>
               <div>{renderContent(msg.content)}</div>
               {msg.pendingActions && (
                 <div className={styles.chatConfirmBtns}>
-                  <button className={styles.confirmBtn} onClick={handleConfirmAction}>✅ 确认执行</button>
-                  <button className={styles.cancelBtn} onClick={handleCancelAction}>❌ 取消</button>
+                  <button className={styles.confirmBtn} onClick={handleConfirmAction}>✅ Confirm</button>
+                  <button className={styles.cancelBtn} onClick={handleCancelAction}>❌ Cancel</button>
                 </div>
               )}
               {msg.actions && (
@@ -327,9 +327,9 @@ export default function AIAssistantView() {
                   {msg.actions.map((action, i) => (<div key={i} className={styles.chatActionItem}>{action}</div>))}
                 </div>
               )}
-              <div className={styles.chatTime}>{msg.timestamp.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</div>
+              <div className={styles.chatTime}>{msg.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
             </div>
-            {msg.role === 'user' && <div className={styles.chatAvatar} title="你">👤</div>}
+            {msg.role === 'user' && <div className={styles.chatAvatar} title="You">👤</div>}
           </div>
         ))}
         {isProcessing && (
@@ -337,7 +337,7 @@ export default function AIAssistantView() {
             <div className={styles.chatAvatar}>🤖</div>
             <div className={styles.chatBubble}>
               <div className={styles.chatTyping}><span /><span /><span /></div>
-              正在处理...
+              Processing...
             </div>
           </div>
         )}
@@ -348,16 +348,16 @@ export default function AIAssistantView() {
       <div className={styles.toolbar}>
         <div className={styles.toolbarActions}>
           <div className={styles.toolbarGroup}>
-            <span className={styles.toolbarGroupLabel}>AI 功能</span>
-            <button className={`${styles.toolbarBtn} ${styles.toolbarBtnPrimary}`} onClick={handleDecompose} disabled={isProcessing} title="在输入框输入需求后点击">🧩 智能分解</button>
-            <button className={styles.toolbarBtn} onClick={handleAnalyzeRisks} disabled={isProcessing || tasks.length === 0} title="分析当前项目风险">⚠️ 风险分析</button>
-            <button className={styles.toolbarBtn} onClick={handlePredict} disabled={isProcessing || tasks.length === 0} title="预测项目进度">🔮 进度预测</button>
+            <span className={styles.toolbarGroupLabel}>AI Features</span>
+            <button className={`${styles.toolbarBtn} ${styles.toolbarBtnPrimary}`} onClick={handleDecompose} disabled={isProcessing} title="Enter requirements in the input box then click">🧩 Decompose</button>
+            <button className={styles.toolbarBtn} onClick={handleAnalyzeRisks} disabled={isProcessing || tasks.length === 0} title="Analyze current project risks">⚠️ Risk Analysis</button>
+            <button className={styles.toolbarBtn} onClick={handlePredict} disabled={isProcessing || tasks.length === 0} title="Predict project schedule">🔮 Predict</button>
           </div>
           <div className={styles.toolbarDivider} />
           <div className={styles.toolbarGroup}>
-            <span className={styles.toolbarGroupLabel}>多Agent</span>
-            <button className={styles.toolbarBtn} onClick={handleDailyStandup} disabled={isProcessing} title="执行每日站会">📅 站会</button>
-            <button className={styles.toolbarBtn} onClick={handleRiskScan} disabled={isProcessing || tasks.length === 0} title="扫描延期风险">🛡️ 风险扫描</button>
+            <span className={styles.toolbarGroupLabel}>Multi-Agent</span>
+            <button className={styles.toolbarBtn} onClick={handleDailyStandup} disabled={isProcessing} title="Run daily standup">📅 Standup</button>
+            <button className={styles.toolbarBtn} onClick={handleRiskScan} disabled={isProcessing || tasks.length === 0} title="Scan for delay risks">🛡️ Risk Scan</button>
           </div>
         </div>
         <div className={styles.toolbarQuickCmds}>
@@ -370,11 +370,11 @@ export default function AIAssistantView() {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-            placeholder="输入自然语言指令，如：添加一个任务叫「需求评审」... (Shift+Enter 换行)"
+            placeholder="Enter natural language command, e.g.: Add a task called 'Requirements Review'... (Shift+Enter for new line)"
             disabled={isProcessing}
             rows={2}
           />
-          <button onClick={handleSendMessage} disabled={isProcessing || !inputValue.trim()} className={styles.sendBtn}>发送</button>
+          <button onClick={handleSendMessage} disabled={isProcessing || !inputValue.trim()} className={styles.sendBtn}>Send</button>
         </div>
       </div>
     </div>

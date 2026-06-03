@@ -78,22 +78,22 @@ export default function TaskPanel() {
   }
 
   const statusOptions: { value: TaskStatus; label: string }[] = [
-    { value: 'NotStarted', label: '未开始' },
-    { value: 'InProgress', label: '进行中' },
-    { value: 'Completed', label: '已完成' }
+    { value: 'NotStarted', label: 'Not Started' },
+    { value: 'InProgress', label: 'In Progress' },
+    { value: 'Completed', label: 'Completed' }
   ]
 
   const priorityOptions: { value: TaskPriority; label: string }[] = [
-    { value: 'Urgent', label: '紧急' },
-    { value: 'Important', label: '重要' },
-    { value: 'Normal', label: '普通' },
-    { value: 'Low', label: '低' }
+    { value: 'Urgent', label: 'Urgent' },
+    { value: 'Important', label: 'Important' },
+    { value: 'Normal', label: 'Normal' },
+    { value: 'Low', label: 'Low' }
   ]
 
   const taskTypeOptions: { value: TaskType; label: string; icon: string }[] = [
-    { value: 'task', label: '普通任务', icon: '📋' },
-    { value: 'milestone', label: '里程碑', icon: '🏁' },
-    { value: 'summary', label: '汇总任务', icon: '📊' }
+    { value: 'task', label: 'Task', icon: '📋' },
+    { value: 'milestone', label: 'Milestone', icon: '🏁' },
+    { value: 'summary', label: 'Summary', icon: '📊' }
   ]
 
   return (
@@ -104,7 +104,7 @@ export default function TaskPanel() {
             className={styles.titleInput}
             value={task.title}
             onChange={(e) => handleUpdate('title', e.target.value)}
-            placeholder="任务名称"
+            placeholder="Task name"
           />
           <button
             className={styles.closeButton}
@@ -116,7 +116,7 @@ export default function TaskPanel() {
 
         <div className={styles.panelContent}>
           <div className={styles.section}>
-            <label className={styles.label}>任务类型</label>
+            <label className={styles.label}>Task Type</label>
             <div className={styles.taskTypeOptions}>
               {taskTypeOptions.map((option) => (
                 <button
@@ -132,19 +132,19 @@ export default function TaskPanel() {
           </div>
 
           <div className={styles.section}>
-            <label className={styles.label}>描述</label>
+            <label className={styles.label}>Description</label>
             <textarea
               className={styles.textarea}
               value={task.description || ''}
               onChange={(e) => handleUpdate('description', e.target.value)}
-              placeholder="添加任务描述..."
+              placeholder="Add task description..."
               rows={3}
             />
           </div>
 
           <div className={styles.row}>
             <div className={styles.section}>
-              <label className={styles.label}>状态</label>
+              <label className={styles.label}>Status</label>
               <select
                 className={styles.select}
                 value={task.status}
@@ -159,7 +159,7 @@ export default function TaskPanel() {
             </div>
 
             <div className={styles.section}>
-              <label className={styles.label}>优先级</label>
+              <label className={styles.label}>Priority</label>
               <select
                 className={styles.select}
                 value={task.priority}
@@ -175,7 +175,7 @@ export default function TaskPanel() {
           </div>
 
           <div className={styles.section}>
-            <label className={styles.label}>任务颜色</label>
+            <label className={styles.label}>Task Color</label>
             <div className={styles.colorPicker}>
               {TASK_COLORS.map((color) => (
                 <button
@@ -191,7 +191,7 @@ export default function TaskPanel() {
 
           <div className={styles.row}>
             <div className={styles.section}>
-              <label className={styles.label}>开始日期</label>
+              <label className={styles.label}>Start Date</label>
               <input
                 type="date"
                 className={styles.dateInput}
@@ -203,7 +203,7 @@ export default function TaskPanel() {
             </div>
 
             <div className={styles.section}>
-              <label className={styles.label}>截止日期</label>
+              <label className={styles.label}>Due Date</label>
               <input
                 type="date"
                 className={styles.dateInput}
@@ -221,7 +221,7 @@ export default function TaskPanel() {
             return (
               <div className={styles.section}>
                 <label className={styles.label}>
-                  持续时间: {durationWeeks >= 1 ? `${durationWeeks.toFixed(1).replace(/\.0$/, '')} 周` : `${durationDays} 天`}
+                  Duration: {durationWeeks >= 1 ? `${durationWeeks.toFixed(1).replace(/\.0$/, '')} weeks` : `${durationDays} days`}
                 </label>
                 <div className={styles.durationRow}>
                   <input
@@ -240,15 +240,15 @@ export default function TaskPanel() {
                       handleUpdate('startDateTime', newStart)
                     }}
                   />
-                  <span className={styles.durationUnit}>周</span>
-                  <span className={styles.durationHint}>（修改后自动调整开始日期）</span>
+                  <span className={styles.durationUnit}>weeks</span>
+                  <span className={styles.durationHint}>(adjusts start date automatically)</span>
                 </div>
               </div>
             )
           })()}
 
           <div className={styles.section}>
-            <label className={styles.label}>进度: {task.completedPercent || 0}%</label>
+            <label className={styles.label}>Progress: {task.completedPercent || 0}%</label>
             <input
               type="range"
               className={styles.range}
@@ -262,13 +262,13 @@ export default function TaskPanel() {
           {/* 相对截止日期约束 */}
           {task.taskType !== 'milestone' && (
             <div className={styles.section}>
-              <label className={styles.label}>截止日期约束</label>
+              <label className={styles.label}>Deadline Constraint</label>
               {constraint && constraintRef ? (
                 <div className={styles.constraintDisplay}>
                   <div className={styles.constraintInfo}>
                     <span className={styles.constraintIcon}>{constraintRef.taskType === 'milestone' ? '◆' : '📋'}</span>
                     <span className={styles.constraintText}>
-                      在 <strong>{constraintRef.title}</strong> {constraint.type === 'before' ? '之前' : '之后'} <strong>{constraint.offsetWeeks}周</strong> 完成
+                      Complete <strong>{constraint.offsetWeeks} week(s)</strong> {constraint.type === 'before' ? 'before' : 'after'} <strong>{constraintRef.title}</strong>
                     </span>
                   </div>
                   <div className={styles.constraintActions}>
@@ -277,8 +277,8 @@ export default function TaskPanel() {
                       value={constraint.type}
                       onChange={(e) => handleSetConstraint(constraint.refTaskId, constraint.offsetWeeks, e.target.value as 'before' | 'after')}
                     >
-                      <option value="before">之前</option>
-                      <option value="after">之后</option>
+                      <option value="before">Before</option>
+                      <option value="after">After</option>
                     </select>
                     <input
                       type="number"
@@ -287,27 +287,27 @@ export default function TaskPanel() {
                       value={constraint.offsetWeeks}
                       onChange={(e) => handleSetConstraint(constraint.refTaskId, Math.max(0, parseInt(e.target.value) || 0), constraint.type)}
                     />
-                    <span style={{ fontSize: '11px', color: '#666' }}>周</span>
-                    <button className={styles.constraintRemoveBtn} onClick={handleClearConstraint} title="移除约束">✕</button>
+                    <span style={{ fontSize: '11px', color: '#666' }}>weeks</span>
+                    <button className={styles.constraintRemoveBtn} onClick={handleClearConstraint} title="Remove constraint">✕</button>
                   </div>
                 </div>
               ) : (
                 <div className={styles.constraintSetup}>
-                  <div className={styles.constraintSetupLabel}>选择参考节点：</div>
+                  <div className={styles.constraintSetupLabel}>Select reference node:</div>
                   {milestoneCandidates.length > 0 && (
                     <div className={styles.constraintGroup}>
-                      <div className={styles.constraintGroupTitle}>◆ 里程碑</div>
+                      <div className={styles.constraintGroupTitle}>◆ Milestones</div>
                       {milestoneCandidates.map((ms) => (
                         <button
                           key={ms.id}
                           className={styles.constraintRefBtn}
                           onClick={() => handleSetConstraint(ms.id, 2, 'before')}
-                          title={`设置为在"${ms.title}"之前2周完成`}
+                          title={`Set to complete 2 weeks before "${ms.title}"`}
                         >
                           <span className={styles.constraintRefIcon}>◆</span>
                           {ms.title}
                           <span className={styles.constraintRefDate}>
-                            {new Date(ms.startDateTime).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
+                            {new Date(ms.startDateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </span>
                         </button>
                       ))}
@@ -315,24 +315,24 @@ export default function TaskPanel() {
                   )}
                   {taskCandidates.length > 0 && (
                     <div className={styles.constraintGroup}>
-                      <div className={styles.constraintGroupTitle}>📋 任务</div>
+                      <div className={styles.constraintGroupTitle}>📋 Tasks</div>
                       {taskCandidates.slice(0, 10).map((t) => (
                         <button
                           key={t.id}
                           className={styles.constraintRefBtn}
                           onClick={() => handleSetConstraint(t.id, 1, 'before')}
-                          title={`设置为在"${t.title}"之前1周完成`}
+                          title={`Set to complete 1 week before "${t.title}"`}
                         >
                           {t.title}
                           <span className={styles.constraintRefDate}>
-                            {new Date(t.dueDateTime).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
+                            {new Date(t.dueDateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </span>
                         </button>
                       ))}
                     </div>
                   )}
                   {refCandidates.length === 0 && (
-                    <div style={{ fontSize: '12px', color: '#999', fontStyle: 'italic' }}>暂无可用的参考节点</div>
+                    <div style={{ fontSize: '12px', color: '#999', fontStyle: 'italic' }}>No reference nodes available</div>
                   )}
                 </div>
               )}
@@ -342,10 +342,10 @@ export default function TaskPanel() {
           {/* 依赖关系 */}
           {(dependencyTasks.length > 0 || dependentTasks.length > 0) && (
             <div className={styles.section}>
-              <label className={styles.label}>依赖关系</label>
+              <label className={styles.label}>Dependencies</label>
               {dependencyTasks.length > 0 && (
                 <div className={styles.dependencyList}>
-                  <div className={styles.dependencyLabel}>依赖于：</div>
+                  <div className={styles.dependencyLabel}>Depends on:</div>
                   {dependencyTasks.map((depTask) => {
                     const dep = (task.dependencies || []).find((d) =>
                       typeof d === 'string' ? d === depTask.id : d.taskId === depTask.id
@@ -363,16 +363,16 @@ export default function TaskPanel() {
                           <span>📎 {depTask.title}</span>
                           {violated ? (
                             <span style={{ fontSize: '11px', color: '#e00', fontWeight: 'bold' }}>
-                              ⚠ 延迟{delayDays}天{lagDays > 0 ? ` (约束+${lagDays}天)` : ''}
+                              ⚠ Delayed {delayDays}d{lagDays > 0 ? ` (constraint +${lagDays}d)` : ''}
                             </span>
                           ) : lagDays > 0 ? (
                             <span style={{ fontSize: '11px', color: '#0078d4', fontWeight: 'bold' }}>
-                              (约束: +{lagDays}天 ✓)
+                              (constraint: +{lagDays}d ✓)
                             </span>
                           ) : null}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                          <label style={{ fontSize: '11px', color: '#888' }}>延迟天数:</label>
+                          <label style={{ fontSize: '11px', color: '#888' }}>Lag days:</label>
                           <input
                             type="number"
                             min="0"
@@ -388,7 +388,7 @@ export default function TaskPanel() {
               )}
               {dependentTasks.length > 0 && (
                 <div className={styles.dependencyList}>
-                  <div className={styles.dependencyLabel}>被依赖于：</div>
+                  <div className={styles.dependencyLabel}>Depended on by:</div>
                   {dependentTasks.map((depTask) => (
                     <div key={depTask.id} className={styles.dependencyItem}>
                       👉 {depTask.title}
@@ -401,7 +401,7 @@ export default function TaskPanel() {
 
           {bucket && (
             <div className={styles.section}>
-              <label className={styles.label}>分组</label>
+              <label className={styles.label}>Group</label>
               <div className={styles.bucketBadge}>
                 <span
                   className={styles.bucketColor}
@@ -414,7 +414,7 @@ export default function TaskPanel() {
 
           {taskLabels.length > 0 && (
             <div className={styles.section}>
-              <label className={styles.label}>标签</label>
+              <label className={styles.label}>Labels</label>
               <div className={styles.labels}>
                 {taskLabels.map((label) => (
                   <span key={label.id} className={styles.labelBadge}>
@@ -427,7 +427,7 @@ export default function TaskPanel() {
 
           {assignees.length > 0 && (
             <div className={styles.section}>
-              <label className={styles.label}>负责人</label>
+              <label className={styles.label}>Assignee</label>
               <div className={styles.assignees}>
                 {assignees.map((user) => (
                   <div key={user.id} className={styles.assignee}>
@@ -442,16 +442,16 @@ export default function TaskPanel() {
           )}
 
           <div className={styles.section}>
-            <label className={styles.label}>元信息</label>
+            <label className={styles.label}>Metadata</label>
             <div className={styles.meta}>
               <div className={styles.metaItem}>
-                <span className={styles.metaLabel}>创建时间</span>
+                <span className={styles.metaLabel}>Created</span>
                 <span className={styles.metaValue}>
                   {formatDateTime(new Date(task.createdAt))}
                 </span>
               </div>
               <div className={styles.metaItem}>
-                <span className={styles.metaLabel}>更新时间</span>
+                <span className={styles.metaLabel}>Updated</span>
                 <span className={styles.metaValue}>
                   {formatDateTime(new Date(task.updatedAt))}
                 </span>
@@ -464,13 +464,13 @@ export default function TaskPanel() {
           <button
             className={styles.deleteButton}
             onClick={() => {
-              if (confirm('确定要删除这个任务吗？')) {
+              if (confirm('Are you sure you want to delete this task?')) {
                 useAppStore.getState().deleteTask(task.id)
                 setSelectedTaskId(null)
               }
             }}
           >
-            删除任务
+            Delete Task
           </button>
         </div>
       </div>

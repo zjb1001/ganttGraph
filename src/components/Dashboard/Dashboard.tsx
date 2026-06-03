@@ -88,7 +88,7 @@ export default function Dashboard() {
 
   const handleDelete = async (e: React.MouseEvent, projectId: string, projectName: string) => {
     e.stopPropagation()
-    if (confirm(`确定要删除项目"${projectName}"吗？此操作不可恢复。`)) {
+    if (confirm(`Are you sure you want to delete project "${projectName}"? This action cannot be undone.`)) {
       await deleteProject(projectId)
       await refreshAllTasks()
     }
@@ -116,13 +116,13 @@ export default function Dashboard() {
               <span className={styles.titleIcon}>📊</span>
               Gantt Graph
             </h1>
-            <p className={styles.subtitle}>项目管理 & 甘特图可视化</p>
+            <p className={styles.subtitle}>Project Management & Gantt Visualization</p>
           </div>
           <button
             className={styles.addProjectBtn}
             onClick={() => { setAddingProject(true); setNewName(''); setNewDesc('') }}
           >
-            + 新建项目
+            + New Project
           </button>
         </div>
 
@@ -140,7 +140,7 @@ export default function Dashboard() {
                     value={editingName}
                     onChange={(e) => setEditingName(e.target.value)}
                     onKeyDown={handleEditKeyDown}
-                    placeholder="项目名称"
+                    placeholder="Project name"
                     autoFocus
                   />
                   <textarea
@@ -148,12 +148,12 @@ export default function Dashboard() {
                     value={editingDesc}
                     onChange={(e) => setEditingDesc(e.target.value)}
                     onKeyDown={handleEditKeyDown}
-                    placeholder="项目描述（可选）"
+                    placeholder="Project description (optional)"
                     rows={2}
                   />
                   <div className={styles.editActions}>
-                    <button className={styles.editSaveBtn} onClick={handleSaveEdit}>✓ 保存</button>
-                    <button className={styles.editCancelBtn} onClick={() => setEditingId(null)}>✕ 取消</button>
+                    <button className={styles.editSaveBtn} onClick={handleSaveEdit}>✓ Save</button>
+                    <button className={styles.editCancelBtn} onClick={() => setEditingId(null)}>✕ Cancel</button>
                   </div>
                 </div>
               )
@@ -171,12 +171,12 @@ export default function Dashboard() {
                     <button
                       className={styles.cardEditBtn}
                       onClick={(e) => handleStartEdit(e, project.id, project.name, project.description || '')}
-                      title="编辑项目"
+                      title="Edit project"
                     >✎</button>
                     <button
                       className={styles.cardDeleteBtn}
                       onClick={(e) => handleDelete(e, project.id, project.name)}
-                      title="删除项目"
+                      title="Delete project"
                     >×</button>
                   </div>
                 </div>
@@ -186,15 +186,15 @@ export default function Dashboard() {
                 <div className={styles.cardStats}>
                   <div className={styles.statItem}>
                     <span className={styles.statValue}>{stats.total}</span>
-                    <span className={styles.statLabel}>任务</span>
+                    <span className={styles.statLabel}>Tasks</span>
                   </div>
                   <div className={styles.statItem}>
                     <span className={styles.statValue}>{stats.milestones}</span>
-                    <span className={styles.statLabel}>里程碑</span>
+                    <span className={styles.statLabel}>Milestones</span>
                   </div>
                   <div className={styles.statItem}>
                     <span className={styles.statValue}>{progress}%</span>
-                    <span className={styles.statLabel}>完成度</span>
+                    <span className={styles.statLabel}>Complete</span>
                   </div>
                 </div>
                 {stats.total > 0 && (
@@ -204,7 +204,7 @@ export default function Dashboard() {
                 )}
                 <div className={styles.cardFooter}>
                   <span className={styles.cardDate}>
-                    更新于 {formatDateTime(new Date(project.updatedAt))}
+                    Updated {formatDateTime(new Date(project.updatedAt))}
                   </span>
                 </div>
               </div>
@@ -219,7 +219,7 @@ export default function Dashboard() {
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={handleAddKeyDown}
-                placeholder="项目名称"
+                placeholder="Project name"
                 autoFocus
               />
               <textarea
@@ -227,12 +227,12 @@ export default function Dashboard() {
                 value={newDesc}
                 onChange={(e) => setNewDesc(e.target.value)}
                 onKeyDown={handleAddKeyDown}
-                placeholder="项目描述（可选）"
+                placeholder="Project description (optional)"
                 rows={2}
               />
               <div className={styles.editActions}>
-                <button className={styles.editSaveBtn} onClick={handleAddProject}>✓ 创建</button>
-                <button className={styles.editCancelBtn} onClick={() => { setAddingProject(false); setNewName(''); setNewDesc('') }}>✕ 取消</button>
+                <button className={styles.editSaveBtn} onClick={handleAddProject}>✓ Create</button>
+                <button className={styles.editCancelBtn} onClick={() => { setAddingProject(false); setNewName(''); setNewDesc('') }}>✕ Cancel</button>
               </div>
             </div>
           ) : (
@@ -241,7 +241,7 @@ export default function Dashboard() {
               onClick={() => { setAddingProject(true); setNewName(''); setNewDesc('') }}
             >
               <span className={styles.addCardIcon}>+</span>
-              <span className={styles.addCardText}>新建项目</span>
+              <span className={styles.addCardText}>New Project</span>
             </button>
           )}
         </div>

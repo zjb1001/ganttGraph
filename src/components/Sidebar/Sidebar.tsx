@@ -34,13 +34,16 @@ export default function Sidebar() {
     const usedIds = new Set(projectTasks.map((t) => t.bucketId))
     const seen = new Set<string>()
     return buckets.filter((b) => {
+      // 精确匹配，或 projectId=''（迁移遗留）且被本项目任务引用
+      const belongs = b.projectId === currentProjectId || (b.projectId === '' && usedIds.has(b.id))
+      if (!belongs) return false
       if (usedIds.has(b.id) && !seen.has(b.id)) {
         seen.add(b.id)
         return true
       }
       return false
     })
-  }, [buckets, projectTasks])
+  }, [buckets, projectTasks, currentProjectId])
 
   // 按状态统计任务
   const statusCounts = {
@@ -59,7 +62,7 @@ export default function Sidebar() {
 
   return (
     <aside className={styles.sidebar}>
-      <Section title="分组">
+      <Section title="Groups">
         {projectBuckets.map((bucket) => (
           <div key={bucket.id} className={styles.bucketItem}>
             <span
@@ -74,49 +77,49 @@ export default function Sidebar() {
         ))}
       </Section>
 
-      <Section title="状态">
+      <Section title="Status">
         <div className={styles.statusItem}>
           <span className={styles.statusDot} style={{ backgroundColor: STATUS_COLORS.NotStarted }} />
-          <span className={styles.statusName}>未开始</span>
+          <span className={styles.statusName}>Not Started</span>
           <span className={styles.statusCount}>{statusCounts.NotStarted}</span>
         </div>
         <div className={styles.statusItem}>
           <span className={styles.statusDot} style={{ backgroundColor: STATUS_COLORS.InProgress }} />
-          <span className={styles.statusName}>进行中</span>
+          <span className={styles.statusName}>In Progress</span>
           <span className={styles.statusCount}>{statusCounts.InProgress}</span>
         </div>
         <div className={styles.statusItem}>
           <span className={styles.statusDot} style={{ backgroundColor: STATUS_COLORS.Completed }} />
-          <span className={styles.statusName}>已完成</span>
+          <span className={styles.statusName}>Completed</span>
           <span className={styles.statusCount}>{statusCounts.Completed}</span>
         </div>
       </Section>
 
-      <Section title="优先级">
+      <Section title="Priority">
         <div className={styles.priorityItem}>
           <span className={styles.priorityDot} style={{ backgroundColor: PRIORITY_COLORS.Urgent }} />
-          <span className={styles.priorityName}>紧急</span>
+          <span className={styles.priorityName}>Urgent</span>
           <span className={styles.priorityCount}>{priorityCounts.Urgent}</span>
         </div>
         <div className={styles.priorityItem}>
           <span className={styles.priorityDot} style={{ backgroundColor: PRIORITY_COLORS.Important }} />
-          <span className={styles.priorityName}>重要</span>
+          <span className={styles.priorityName}>Important</span>
           <span className={styles.priorityCount}>{priorityCounts.Important}</span>
         </div>
         <div className={styles.priorityItem}>
           <span className={styles.priorityDot} style={{ backgroundColor: PRIORITY_COLORS.Normal }} />
-          <span className={styles.priorityName}>普通</span>
+          <span className={styles.priorityName}>Normal</span>
           <span className={styles.priorityCount}>{priorityCounts.Normal}</span>
         </div>
         <div className={styles.priorityItem}>
           <span className={styles.priorityDot} style={{ backgroundColor: PRIORITY_COLORS.Low }} />
-          <span className={styles.priorityName}>低</span>
+          <span className={styles.priorityName}>Low</span>
           <span className={styles.priorityCount}>{priorityCounts.Low}</span>
         </div>
       </Section>
 
       {labels.length > 0 && (
-        <Section title="标签">
+        <Section title="Labels">
           {labels.map((label) => (
             <div key={label.id} className={styles.labelItem}>
               <span className={styles.labelColor} style={{ backgroundColor: label.color }} />
@@ -127,7 +130,7 @@ export default function Sidebar() {
       )}
 
       {users.length > 0 && (
-        <Section title="成员">
+        <Section title="Members">
           {users.map((user) => (
             <div key={user.id} className={styles.userItem}>
               <div className={styles.userAvatar}>{user.name.charAt(0)}</div>

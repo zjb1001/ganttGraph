@@ -7,10 +7,10 @@ export default function Header() {
   const currentProject = projects.find((p) => p.id === currentProjectId)
 
   const views = [
-    { id: 'ai' as const, name: 'AI助手', icon: '🤖' },
-    { id: 'gantt' as const, name: '甘特图', icon: '📊' },
-    { id: 'board' as const, name: '看板', icon: '📋' },
-    { id: 'list' as const, name: '列表', icon: '📝' }
+    { id: 'ai' as const, name: 'AI Assistant', icon: '🤖' },
+    { id: 'gantt' as const, name: 'Gantt', icon: '📊' },
+    { id: 'board' as const, name: 'Board', icon: '📋' },
+    { id: 'list' as const, name: 'List', icon: '📝' }
   ]
 
   return (
@@ -19,7 +19,7 @@ export default function Header() {
         <button
           className={styles.sidebarToggle}
           onClick={toggleSidebar}
-          title={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
+          title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             {sidebarCollapsed ? (
@@ -73,7 +73,7 @@ export default function Header() {
       </div>
 
       <div className={styles.headerRight}>
-        <button className={styles.iconButton} title="设置">
+        <button className={styles.iconButton} title="Settings">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3" />
             <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />

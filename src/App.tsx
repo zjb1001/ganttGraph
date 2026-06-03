@@ -22,6 +22,7 @@ function App() {
     loadUsers,
     loadLabels,
     loadTasks,
+    loadMarkers,
     projects
   } = useAppStore()
 
@@ -36,8 +37,8 @@ function App() {
         await loadLabels()
         setIsInitialized(true)
       } catch (error) {
-        console.error('数据初始化失败:', error)
-        setIsInitialized(true) // 即使失败也继续，避免卡在加载状态
+        console.error('Data initialization failed:', error)
+        setIsInitialized(true)
       }
     }
     initData()
@@ -47,15 +48,16 @@ function App() {
   useEffect(() => {
     if (currentProjectId) {
       loadTasks(currentProjectId)
+      loadMarkers(currentProjectId)
     }
-  }, [currentProjectId, loadTasks])
+  }, [currentProjectId, loadTasks, loadMarkers])
 
   // 加载中显示
   if (!isInitialized) {
     return (
       <div className={styles.loading}>
         <div className={styles.spinner}></div>
-        <p>加载中...</p>
+        <p>Loading...</p>
       </div>
     )
   }

@@ -46,8 +46,8 @@ export function useGanttAgent() {
     
     // 创建专业 Agent（用于甘特图分析）
     const pmAgent = new ProjectManagerAgent('pm_gantt', bus);
-    const devAgent = new DeveloperAgent('dev_gantt', '开发顾问', bus);
-    const testAgent = new TesterAgent('test_gantt', '测试顾问', bus);
+    const devAgent = new DeveloperAgent('dev_gantt', 'Dev Consultant', bus);
+    const testAgent = new TesterAgent('test_gantt', 'Test Consultant', bus);
     const resourceAgent = new ResourceSchedulerAgent('res_gantt', bus);
     const riskAgent = new RiskMonitorAgent('risk_gantt', bus);
     
@@ -91,14 +91,14 @@ export function useGanttAgent() {
             taskName: d.taskName,
             riskLevel: d.severity as TaskRisk['riskLevel'],
             delayDays: d.delayDays,
-            message: `预计延期 ${d.delayDays} 天`
+            message: `Expected delay of ${d.delayDays} days`
           });
         });
         
         // 生成 Agent 洞察
         newInsights.push({
           type: 'risk',
-          message: `检测到 ${result.delays.length} 个延期风险`,
+          message: `Detected ${result.delays.length} delay risk(s)`,
           priority: 'high'
         });
         
@@ -107,14 +107,14 @@ export function useGanttAgent() {
           const bestPlan = result.plans[0];
           newInsights.push({
             type: 'suggestion',
-            message: `建议: ${bestPlan.name} (节省 ${bestPlan.impact.timeSave} 天)`,
+            message: `Suggestion: ${bestPlan.name} (save ${bestPlan.impact.timeSave} days)`,
             priority: 'medium'
           });
         }
       } else {
         newInsights.push({
           type: 'optimization',
-          message: '项目按计划进行，暂无延期风险',
+          message: 'Project on track, no delay risks detected',
           priority: 'low'
         });
       }
@@ -189,7 +189,7 @@ export function TaskRiskBadge({ risk }: { risk?: TaskRisk }) {
       style={{ backgroundColor: colors[risk.riskLevel] }}
       title={risk.message}
     >
-      {icons[risk.riskLevel]} {risk.delayDays}天
+      {icons[risk.riskLevel]} {risk.delayDays}d
     </div>
   );
 }
@@ -214,10 +214,10 @@ export function AgentInsightPanel() {
   return (
     <div className={styles.insightPanel}>
       <div className={styles.panelHeader}>
-        <span>🤖 Agent 洞察</span>
+        <span>🤖 Agent Insights</span>
         <div className={styles.headerActions}>
-          {isAnalyzing && <span className={styles.analyzing}>分析中...</span>}
-          <button onClick={() => analyzeRisks()} title="重新分析">🔄</button>
+          {isAnalyzing && <span className={styles.analyzing}>Analyzing...</span>}
+          <button onClick={() => analyzeRisks()} title="Re-analyze">🔄</button>
           <button onClick={() => setIsOpen(false)}>×</button>
         </div>
       </div>
@@ -225,7 +225,7 @@ export function AgentInsightPanel() {
       <div className={styles.insightList}>
         {insights.length === 0 ? (
           <div className={styles.emptyInsight}>
-            暂无洞察，点击刷新开始分析
+            No insights yet, click refresh to start analysis
           </div>
         ) : (
           insights.map((insight, i) => (
@@ -246,7 +246,7 @@ export function AgentInsightPanel() {
       
       {lastAnalysis && (
         <div className={styles.lastUpdate}>
-          上次更新: {lastAnalysis.toLocaleTimeString()}
+          Last updated: {lastAnalysis.toLocaleTimeString()}
         </div>
       )}
     </div>
@@ -268,7 +268,7 @@ export function GanttAgentToolbar() {
           onClick={analyzeRisks}
           disabled={isAnalyzing}
         >
-          {isAnalyzing ? '⏳' : '🔍'} 风险扫描
+          {isAnalyzing ? '⏳' : '🔍'} Risk Scan
           {hasRisks && <span className={styles.badge}>{risks.length}</span>}
         </button>
         
@@ -277,24 +277,24 @@ export function GanttAgentToolbar() {
           onClick={() => setShowAdjustments(!showAdjustments)}
           disabled={!hasRisks}
         >
-          🛠️ 调整方案
+          🛠️ Adjustments
         </button>
       </div>
       
       {showAdjustments && hasRisks && (
         <div className={styles.adjustmentMenu}>
-          <div className={styles.menuTitle}>选择调整策略:</div>
+          <div className={styles.menuTitle}>Choose adjustment strategy:</div>
           <button onClick={() => applyAdjustment('crash')}>
-            ⚡ 赶工 (增加资源)
+            ⚡ Crashing (add resources)
           </button>
           <button onClick={() => applyAdjustment('fast-track')}>
-            🔥 快速跟进 (并行)
+            🔥 Fast Tracking (parallel)
           </button>
           <button onClick={() => applyAdjustment('resource-reallocate')}>
-            🔄 资源重分配
+            🔄 Resource Reallocation
           </button>
           <button onClick={() => applyAdjustment('scope-reduce')}>
-            ✂️ 范围削减
+            ✂️ Scope Reduction
           </button>
         </div>
       )}
