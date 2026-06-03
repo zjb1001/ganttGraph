@@ -9,16 +9,16 @@ export default function ListView() {
   const projectTasks = tasks.filter((t) => t.projectId === currentProjectId)
 
   const statusNames: Record<string, string> = {
-    NotStarted: '未开始',
-    InProgress: '进行中',
-    Completed: '已完成'
+    NotStarted: 'Not Started',
+    InProgress: 'In Progress',
+    Completed: 'Completed'
   }
 
   const priorityNames: Record<string, string> = {
-    Urgent: '紧急',
-    Important: '重要',
-    Normal: '普通',
-    Low: '低'
+    Urgent: 'Urgent',
+    Important: 'Important',
+    Normal: 'Normal',
+    Low: 'Low'
   }
 
   return (
@@ -27,12 +27,12 @@ export default function ListView() {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th className={styles.thTitle}>任务名称</th>
-              <th className={styles.thStatus}>状态</th>
-              <th className={styles.thPriority}>优先级</th>
-              <th className={styles.thDates}>开始日期</th>
-              <th className={styles.thDates}>截止日期</th>
-              <th className={styles.thProgress}>进度</th>
+              <th className={styles.thTitle}>Task Name</th>
+              <th className={styles.thStatus}>Status</th>
+              <th className={styles.thPriority}>Priority</th>
+              <th className={styles.thDates}>Start Date</th>
+              <th className={styles.thDates}>Due Date</th>
+              <th className={styles.thProgress}>Progress</th>
             </tr>
           </thead>
           <tbody>

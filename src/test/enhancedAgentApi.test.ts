@@ -243,7 +243,7 @@ describe('Enhanced Agent API', () => {
           end_date: '2025-03-05'
         }]
 
-        const buckets = [{ id: 'bucket-1', name: '需求分析' } as any]
+        const buckets = [{ id: 'bucket-1', projectId: 'project-1', name: '需求分析' } as any]
         const result = convertDecomposedTasks(decomposed, 'project-1', buckets)
 
         expect(result).toHaveLength(1)

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import { Task, Project, Bucket, User, Label, ViewType, TimeUnit, Dependency } from '@/types'
+import { Task, Project, Bucket, User, Label, ViewType, TimeUnit, Dependency, VerticalMarker } from '@/types'
 import { db } from '@/db'
 
 interface AppStore {
@@ -32,6 +32,7 @@ interface AppStore {
   buckets: Bucket[]
   users: User[]
   labels: Label[]
+  verticalMarkers: VerticalMarker[]
 
   // 加载数据
   loadProjects: () => Promise<void>
@@ -61,9 +62,17 @@ interface AppStore {
   // ============================================
   // 分组操作
   // ============================================
-  addBucket: (bucket: Omit<Bucket, 'id'>) => Promise<Bucket>
+  addBucket: (bucket: Omit<Bucket, 'id' | 'projectId'> & { projectId?: string }) => Promise<Bucket>
   updateBucket: (bucketId: string, updates: Partial<Bucket>) => Promise<void>
   deleteBucket: (bucketId: string) => Promise<void>
+
+  // ============================================
+  // 垂直标记线操作
+  // ============================================
+  loadMarkers: (projectId: string) => Promise<void>
+  addMarker: (marker: Omit<VerticalMarker, 'id'>) => Promise<void>
+  updateMarker: (markerId: string, updates: Partial<VerticalMarker>) => Promise<void>
+  deleteMarker: (markerId: string) => Promise<void>
 }
 
 export const useAppStore = create<AppStore>()(
@@ -85,6 +94,7 @@ export const useAppStore = create<AppStore>()(
         buckets: [],
         users: [],
         labels: [],
+        verticalMarkers: [],
 
         // ============================================
         // UI 状态更新
@@ -355,6 +365,8 @@ export const useAppStore = create<AppStore>()(
         addBucket: async (bucketData) => {
           const bucket: Bucket = {
             ...bucketData,
+            // 兜底：未显式指定 projectId 时归属当前项目，避免分组跨项目耦合
+            projectId: bucketData.projectId || get().currentProjectId || '',
             id: crypto.randomUUID()
           }
           await db.addBucket(bucket)
@@ -383,6 +395,37 @@ export const useAppStore = create<AppStore>()(
             buckets: state.buckets.filter((b) => b.id !== bucketId),
             tasks: state.tasks.filter((t) => t.bucketId !== bucketId)
           }))
+        },
+
+        // ============================================
+        // 垂直标记线操作
+        // ============================================
+        loadMarkers: async (projectId) => {
+          const verticalMarkers = await db.getMarkersByProject(projectId)
+          set({ verticalMarkers })
+        },
+
+        addMarker: async (markerData) => {
+          const marker: VerticalMarker = {
+            ...markerData,
+            id: crypto.randomUUID()
+          }
+          await db.addMarker(marker)
+          set((state) => ({ verticalMarkers: [...state.verticalMarkers, marker] }))
+        },
+
+        updateMarker: async (markerId, updates) => {
+          await db.updateMarker(markerId, updates)
+          set((state) => ({
+            verticalMarkers: state.verticalMarkers.map((m) =>
+              m.id === markerId ? { ...m, ...updates } : m
+            )
+          }))
+        },
+
+        deleteMarker: async (markerId) => {
+          await db.deleteMarker(markerId)
+          set((state) => ({ verticalMarkers: state.verticalMarkers.filter((m) => m.id !== markerId) }))
         }
       }),
       {

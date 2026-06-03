@@ -48,10 +48,21 @@ export interface DeadlineConstraint {
 // 分组/看板
 export interface Bucket {
   id: string
+  projectId: string  // 所属项目，避免不同项目分组相互耦合
   name: string
   order: number
   color?: string
   bucketType?: 'task' | 'milestone'  // 分组类型：普通任务分组 或 里程碑分组
+}
+
+// 垂直标记线
+export interface VerticalMarker {
+  id: string
+  projectId: string
+  date: string
+  label: string
+  color: string
+  thickness: number
 }
 
 // 项目/工作空间
@@ -62,6 +73,8 @@ export interface Project {
   createdAt: Date
   updatedAt: Date
   bucketIds: string[]
+  ganttStart?: string  // 甘特图起始日期 'YYYY-MM-DD'，每个项目独立保存
+  ganttEnd?: string    // 甘特图结束日期 'YYYY-MM-DD'
 }
 
 // 任务对象 (核心)

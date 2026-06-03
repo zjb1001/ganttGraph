@@ -37,31 +37,31 @@ export async function initializeVehicleProject() {
   // 创建分组 - 按整车开发阶段组织
   const buckets = [
     // Phase 0: 产品战略
-    { id: `bucket_strategy_${projectId}`, name: '🎯 产品战略', color: '#8b5cf6', order: 1, bucketType: 'task' as const },
-    
+    { id: `bucket_strategy_${projectId}`, projectId, name: '🎯 产品战略', color: '#8b5cf6', order: 1, bucketType: 'task' as const },
+
     // Phase 1: 概念设计
-    { id: `bucket_concept_${projectId}`, name: '💡 概念设计', color: '#ec4899', order: 2, bucketType: 'task' as const },
-    
+    { id: `bucket_concept_${projectId}`, projectId, name: '💡 概念设计', color: '#ec4899', order: 2, bucketType: 'task' as const },
+
     // Phase 2: 工程设计
-    { id: `bucket_design_${projectId}`, name: '🏗️ 工程设计', color: '#3b82f6', order: 3, bucketType: 'task' as const },
-    { id: `bucket_body_${projectId}`, name: '🚗 车身工程', color: '#06b6d4', order: 4, bucketType: 'task' as const },
-    { id: `bucket_chassis_${projectId}`, name: '⚙️ 底盘工程', color: '#10b981', order: 5, bucketType: 'task' as const },
-    { id: `bucket_powertrain_${projectId}`, name: '🔋 三电系统', color: '#f59e0b', order: 6, bucketType: 'task' as const },
-    { id: `bucket_electronics_${projectId}`, name: '📟 电子电器', color: '#6366f1', order: 7, bucketType: 'task' as const },
-    
+    { id: `bucket_design_${projectId}`, projectId, name: '🏗️ 工程设计', color: '#3b82f6', order: 3, bucketType: 'task' as const },
+    { id: `bucket_body_${projectId}`, projectId, name: '🚗 车身工程', color: '#06b6d4', order: 4, bucketType: 'task' as const },
+    { id: `bucket_chassis_${projectId}`, projectId, name: '⚙️ 底盘工程', color: '#10b981', order: 5, bucketType: 'task' as const },
+    { id: `bucket_powertrain_${projectId}`, projectId, name: '🔋 三电系统', color: '#f59e0b', order: 6, bucketType: 'task' as const },
+    { id: `bucket_electronics_${projectId}`, projectId, name: '📟 电子电器', color: '#6366f1', order: 7, bucketType: 'task' as const },
+
     // Phase 3: 样车开发
-    { id: `bucket_prototype_${projectId}`, name: '🔧 样车开发', color: '#f97316', order: 8, bucketType: 'task' as const },
-    
+    { id: `bucket_prototype_${projectId}`, projectId, name: '🔧 样车开发', color: '#f97316', order: 8, bucketType: 'task' as const },
+
     // Phase 4: 验证测试
-    { id: `bucket_validation_${projectId}`, name: '🔍 验证测试', color: '#ef4444', order: 9, bucketType: 'task' as const },
-    { id: `bucket_adas_${projectId}`, name: '🤖 智驾验证', color: '#14b8a6', order: 10, bucketType: 'task' as const },
-    { id: `bucket_cockpit_${projectId}`, name: '🖥️ 座舱验证', color: '#a855f7', order: 11, bucketType: 'task' as const },
-    
+    { id: `bucket_validation_${projectId}`, projectId, name: '🔍 验证测试', color: '#ef4444', order: 9, bucketType: 'task' as const },
+    { id: `bucket_adas_${projectId}`, projectId, name: '🤖 智驾验证', color: '#14b8a6', order: 10, bucketType: 'task' as const },
+    { id: `bucket_cockpit_${projectId}`, projectId, name: '🖥️ 座舱验证', color: '#a855f7', order: 11, bucketType: 'task' as const },
+
     // Phase 5: 量产准备
-    { id: `bucket_production_${projectId}`, name: '🏭 量产准备', color: '#22c55e', order: 12, bucketType: 'task' as const },
-    
+    { id: `bucket_production_${projectId}`, projectId, name: '🏭 量产准备', color: '#22c55e', order: 12, bucketType: 'task' as const },
+
     // 里程碑
-    { id: `bucket_milestone_${projectId}`, name: '🎯 关键里程碑', color: '#d83b01', order: 13, bucketType: 'milestone' as const }
+    { id: `bucket_milestone_${projectId}`, projectId, name: '🎯 关键里程碑', color: '#d83b01', order: 13, bucketType: 'milestone' as const }
   ];
   
   for (const bucket of buckets) {
