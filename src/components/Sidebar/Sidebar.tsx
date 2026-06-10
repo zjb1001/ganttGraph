@@ -34,16 +34,11 @@ export default function Sidebar() {
     const usedIds = new Set(projectTasks.map((t) => t.bucketId))
     const seen = new Set<string>()
     return buckets.filter((b) => {
-      // 精确匹配，或 projectId=''（迁移遗留）且被本项目任务引用
-      const belongs = b.projectId === currentProjectId || (b.projectId === '' && usedIds.has(b.id))
-      if (!belongs) return false
-      if (usedIds.has(b.id) && !seen.has(b.id)) {
-        seen.add(b.id)
-        return true
-      }
-      return false
+      if (!usedIds.has(b.id) || seen.has(b.id)) return false
+      seen.add(b.id)
+      return true
     })
-  }, [buckets, projectTasks, currentProjectId])
+  }, [buckets, projectTasks])
 
   // 按状态统计任务
   const statusCounts = {

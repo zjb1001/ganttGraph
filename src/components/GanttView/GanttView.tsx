@@ -108,18 +108,10 @@ export default function GanttView() {
 
   const projectTasks = tasks.filter((t) => t.projectId === currentProjectId)
 
-  // 当前项目任务实际引用的所有 bucketId
-  const taskBucketIds = useMemo(() =>
-    new Set(tasks.filter((t) => t.projectId === currentProjectId).map((t) => t.bucketId))
-  , [tasks, currentProjectId])
-
-  // 当前项目的分组：精确匹配 projectId，或 projectId=''（迁移未能推断）但被本项目任务引用
+  // 当前项目的分组（state.buckets 已按项目隔离加载）
   const currentProjectBuckets = useMemo(() =>
-    buckets.filter((b) =>
-      b.projectId === currentProjectId ||
-      (b.projectId === '' && taskBucketIds.has(b.id))
-    )
-  , [buckets, currentProjectId, taskBucketIds])
+    buckets.filter((b) => b.projectId === currentProjectId)
+  , [buckets, currentProjectId])
 
   // 分离里程碑分组和普通任务分组
   const milestoneBuckets = useMemo(() =>

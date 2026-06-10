@@ -6,7 +6,7 @@ import { formatDateTime } from '@/utils/date'
 import styles from './Dashboard.module.css'
 
 export default function Dashboard() {
-  const { projects, buckets, addProject, updateProject, deleteProject, setCurrentProjectId, loadProjects, loadBuckets } = useAppStore()
+  const { projects, addProject, updateProject, deleteProject, setCurrentProjectId, loadProjects } = useAppStore()
 
   // 直接从 IndexedDB 加载所有任务，确保 Dashboard 显示所有项目的准确统计
   const [allTasks, setAllTasks] = useState<Task[]>([])
@@ -15,12 +15,10 @@ export default function Dashboard() {
     const loadAllData = async () => {
       const tasks = await db.tasks.toArray()
       setAllTasks(tasks)
-      // 同时刷新项目和分组数据
       await loadProjects()
-      await loadBuckets()
     }
     loadAllData()
-  }, [loadProjects, loadBuckets])
+  }, [loadProjects])
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
@@ -97,13 +95,11 @@ export default function Dashboard() {
   // 统计每个项目的任务数（使用从 DB 直接加载的所有任务）
   const getProjectStats = (projectId: string) => {
     const projectTasks = allTasks.filter((t) => t.projectId === projectId)
-    const projectBuckets = buckets.filter((b) => 
-      projectTasks.some((t) => t.bucketId === b.id)
-    )
+    const projectBuckets = new Set(projectTasks.map((t) => t.bucketId))
     const completed = projectTasks.filter((t) => t.status === 'Completed').length
     const total = projectTasks.length
     const milestones = projectTasks.filter((t) => t.taskType === 'milestone').length
-    return { total, completed, milestones, bucketCount: projectBuckets.length }
+    return { total, completed, milestones, bucketCount: projectBuckets.size }
   }
 
   return (

@@ -37,7 +37,7 @@ interface AppStore {
   // 加载数据
   loadProjects: () => Promise<void>
   loadTasks: (projectId: string) => Promise<void>
-  loadBuckets: () => Promise<void>
+  loadBuckets: (projectId: string) => Promise<void>
   loadUsers: () => Promise<void>
   loadLabels: () => Promise<void>
 
@@ -161,8 +161,8 @@ export const useAppStore = create<AppStore>()(
           set({ tasks })
         },
 
-        loadBuckets: async () => {
-          const buckets = await db.getAllBuckets()
+        loadBuckets: async (projectId) => {
+          const buckets = await db.getBucketsByProject(projectId)
           set({ buckets })
         },
 

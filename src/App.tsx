@@ -32,7 +32,6 @@ function App() {
       try {
         await initializeSampleData()
         await loadProjects()
-        await loadBuckets()
         await loadUsers()
         await loadLabels()
         setIsInitialized(true)
@@ -42,15 +41,16 @@ function App() {
       }
     }
     initData()
-  }, [loadProjects, loadBuckets, loadUsers, loadLabels])
+  }, [loadProjects, loadUsers, loadLabels])
 
-  // 当项目切换时加载任务
+  // 当项目切换时加载任务和分组（保证各项目数据完全隔离）
   useEffect(() => {
     if (currentProjectId) {
       loadTasks(currentProjectId)
       loadMarkers(currentProjectId)
+      loadBuckets(currentProjectId)
     }
-  }, [currentProjectId, loadTasks, loadMarkers])
+  }, [currentProjectId, loadTasks, loadMarkers, loadBuckets])
 
   // 加载中显示
   if (!isInitialized) {
