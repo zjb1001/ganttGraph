@@ -108,9 +108,9 @@ export default function GanttView() {
 
   const projectTasks = tasks.filter((t) => t.projectId === currentProjectId)
 
-  // 当前项目的分组（state.buckets 已按项目隔离加载）
+  // 当前项目的分组（state.buckets 已按项目隔离加载，同时保留 projectId='' 的迁移遗留分组）
   const currentProjectBuckets = useMemo(() =>
-    buckets.filter((b) => b.projectId === currentProjectId)
+    buckets.filter((b) => b.projectId === currentProjectId || b.projectId === '')
   , [buckets, currentProjectId])
 
   // 分离里程碑分组和普通任务分组
@@ -147,20 +147,43 @@ export default function GanttView() {
     }
   }, [])
 
-  // ── 孤儿里程碑迁移：如果存在旧的里程碑没有归属到任何里程碑分组，自动创建默认分组并迁移 ──
-  const migrationDone = useRef(false)
+  // ── 清理历史重复空分组：之前竞态条件 bug 可能遗留多个空的"Milestones"自动分组 ──
+  const dedupeCleanupDone = useRef<string | null>(null)
   useEffect(() => {
-    if (migrationDone.current) return
+    if (!currentProjectId || dedupeCleanupDone.current === currentProjectId) return
+    if (milestoneBuckets.length <= 1) return
+    const bucketsWithTasks = new Set(milestoneTasks.map((t) => t.bucketId))
+    // 只有存在非空里程碑分组时，才删除多余的空"Milestones"自动分组
+    const hasNonEmpty = milestoneBuckets.some((b) => bucketsWithTasks.has(b.id))
+    if (!hasNonEmpty) return
+    const emptyAutoBuckets = milestoneBuckets.filter(
+      (b) => !bucketsWithTasks.has(b.id) && b.name === 'Milestones'
+    )
+    if (emptyAutoBuckets.length === 0) return
+    dedupeCleanupDone.current = currentProjectId
+    ;(async () => {
+      for (const b of emptyAutoBuckets) {
+        await deleteBucket(b.id)
+      }
+    })()
+  }, [currentProjectId, milestoneBuckets, milestoneTasks, deleteBucket])
+
+  // ── 孤儿里程碑迁移：如果存在旧的里程碑没有归属到任何里程碑分组，自动创建默认分组并迁移 ──
+  // 使用 projectId 作为 key，确保每个项目独立运行一次
+  const migrationDone = useRef<string | null>(null)
+  useEffect(() => {
+    if (!currentProjectId || migrationDone.current === currentProjectId) return
     const orphans = milestoneTasks.filter((t) => !milestoneBucketIds.has(t.bucketId))
     if (orphans.length === 0) return
-    migrationDone.current = true
+    migrationDone.current = currentProjectId
     ;(async () => {
       // 创建默认里程碑分组
       const defaultBucket = await addBucket({
         name: 'Milestones',
         order: 0,
         color: '#d83b01',
-        bucketType: 'milestone'
+        bucketType: 'milestone',
+        projectId: currentProjectId
       })
       if (defaultBucket) {
         for (const orphan of orphans) {
@@ -168,15 +191,16 @@ export default function GanttView() {
         }
       }
     })()
-  }, [milestoneTasks, milestoneBucketIds, addBucket, updateTask])
+  }, [currentProjectId, milestoneTasks, milestoneBucketIds, addBucket, updateTask])
 
   // ── 修复迁移遗留：将 projectId='' 但被本项目任务引用的孤儿分组自动回填 projectId ──
-  const orphanFixDone = useRef(false)
+  // 使用 projectId 作为 key，确保每个项目独立运行一次
+  const orphanFixDone = useRef<string | null>(null)
   useEffect(() => {
-    if (!currentProjectId || orphanFixDone.current) return
+    if (!currentProjectId || orphanFixDone.current === currentProjectId) return
     const orphanBuckets = currentProjectBuckets.filter((b) => b.projectId === '')
     if (orphanBuckets.length === 0) return
-    orphanFixDone.current = true
+    orphanFixDone.current = currentProjectId
     ;(async () => {
       for (const b of orphanBuckets) {
         await updateBucket(b.id, { projectId: currentProjectId })

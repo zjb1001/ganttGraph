@@ -115,8 +115,9 @@ export class GanttDatabase extends Dexie {
   }
 
   async deleteProject(projectId: string): Promise<void> {
-    // 删除项目时级联删除相关任务
+    // 删除项目时级联删除相关任务和分组
     await this.tasks.where('projectId').equals(projectId).delete()
+    await this.buckets.where('projectId').equals(projectId).delete()
     await this.projects.delete(projectId)
   }
 
@@ -129,7 +130,16 @@ export class GanttDatabase extends Dexie {
   }
 
   async getBucketsByProject(projectId: string): Promise<Bucket[]> {
-    return await this.buckets.where('projectId').equals(projectId).sortBy('order')
+    const projectBuckets = await this.buckets.where('projectId').equals(projectId).sortBy('order')
+    // 兼容迁移遗留数据：同时加载被本项目任务引用但 projectId='' 的孤儿分组
+    const tasks = await this.tasks.where('projectId').equals(projectId).toArray()
+    const referencedIds = new Set(tasks.map((t) => t.bucketId).filter(Boolean))
+    const loadedIds = new Set(projectBuckets.map((b) => b.id))
+    const orphans = await this.buckets
+      .where('projectId').equals('')
+      .filter((b) => referencedIds.has(b.id) && !loadedIds.has(b.id))
+      .toArray()
+    return [...projectBuckets, ...orphans].sort((a, b) => a.order - b.order)
   }
 
   async addBucket(bucket: Bucket): Promise<string> {

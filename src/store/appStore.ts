@@ -99,7 +99,7 @@ export const useAppStore = create<AppStore>()(
         // ============================================
         // UI 状态更新
         // ============================================
-        setCurrentProjectId: (projectId) => set({ currentProjectId: projectId }),
+        setCurrentProjectId: (projectId) => set({ currentProjectId: projectId, selectedTaskId: null }),
 
         setCurrentView: (view) => set({ currentView: view }),
 
@@ -158,12 +158,12 @@ export const useAppStore = create<AppStore>()(
 
         loadTasks: async (projectId) => {
           const tasks = await db.getTasksByProject(projectId)
-          set({ tasks })
+          if (get().currentProjectId === projectId) set({ tasks })
         },
 
         loadBuckets: async (projectId) => {
           const buckets = await db.getBucketsByProject(projectId)
-          set({ buckets })
+          if (get().currentProjectId === projectId) set({ buckets })
         },
 
         loadUsers: async () => {
@@ -402,7 +402,7 @@ export const useAppStore = create<AppStore>()(
         // ============================================
         loadMarkers: async (projectId) => {
           const verticalMarkers = await db.getMarkersByProject(projectId)
-          set({ verticalMarkers })
+          if (get().currentProjectId === projectId) set({ verticalMarkers })
         },
 
         addMarker: async (markerData) => {

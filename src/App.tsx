@@ -43,13 +43,18 @@ function App() {
     initData()
   }, [loadProjects, loadUsers, loadLabels])
 
-  // 当项目切换时加载任务和分组（保证各项目数据完全隔离）
+  // 当项目切换时加载任务和分组（buckets 必须先于 tasks 加载完成，
+  // 否则迁移逻辑会在 milestoneBucketIds 为空时误判所有里程碑为孤儿）
   useEffect(() => {
-    if (currentProjectId) {
-      loadTasks(currentProjectId)
-      loadMarkers(currentProjectId)
-      loadBuckets(currentProjectId)
+    if (!currentProjectId) return
+    const loadData = async () => {
+      await loadBuckets(currentProjectId)
+      await Promise.all([
+        loadTasks(currentProjectId),
+        loadMarkers(currentProjectId),
+      ])
     }
+    loadData()
   }, [currentProjectId, loadTasks, loadMarkers, loadBuckets])
 
   // 加载中显示
