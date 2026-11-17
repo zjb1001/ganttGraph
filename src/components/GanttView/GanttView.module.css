@@ -9,7 +9,7 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--color-surface);
+  background: var(--gantt-canvas);
   position: relative;
 }
 
@@ -144,7 +144,7 @@
 .colResizeHandle:hover::after {
   width: 3px;
   left: 0;
-  background: var(--color-primary, #0078d4);
+  background: var(--color-primary, #2563eb);
 }
 
 /* ================================================================
@@ -164,11 +164,11 @@
 }
 
 .gridWeek:nth-child(odd) {
-  background: rgba(0, 0, 0, 0.015);
+  background: transparent;
 }
 
 .gridWeek:nth-child(even) {
-  background: rgba(0, 120, 212, 0.055);
+  background: transparent;
 }
 
 /* 贯穿全高的周竖线，渲染在 verticalMarkerLayer 内 */
@@ -177,7 +177,7 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--gantt-grid-line);
   pointer-events: none;
   z-index: 0;
 }
@@ -243,14 +243,15 @@
 .frozenGroupCell {
   gap: 6px;
   padding: 0 8px;
-  background: var(--color-background, #f5f5f5);
+  background: var(--gantt-band);
+  box-shadow: inset 3px 0 0 var(--group-color, transparent);
   cursor: pointer;
   user-select: none;
   border-bottom: 1px solid var(--color-border);
 }
 
 .frozenGroupCell:hover {
-  background: var(--color-surface-hover) !important;
+  background: var(--gantt-band-hover) !important;
 }
 
 /* task row variant */
@@ -263,7 +264,7 @@
   flex-shrink: 0;
   height: 36px;
   position: relative;
-  background: var(--color-background, #f5f5f5);
+  background: var(--gantt-band);
   border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
@@ -286,7 +287,7 @@
   height: 36px;
   position: relative;
   border-bottom: 1px solid var(--color-border-light);
-  background: #fffbf8;
+  background: transparent;
   z-index: 1;
 }
 
@@ -297,7 +298,7 @@
 /* 拖拽手柄 */
 .dragHandle {
   cursor: grab;
-  color: #aaa;
+  color: var(--color-text-tertiary);
   font-size: 14px;
   line-height: 1;
   padding: 0 2px;
@@ -313,15 +314,65 @@
   opacity: 1;
 }
 
-/* 分组行拖拽状态 */
-.groupDragging {
+/* 任务行拖拽手柄：悬停整行时显示 */
+.taskDragHandle {
+  margin-right: 2px;
+  margin-left: -4px;
+}
+.frozenTaskCell:hover .dragHandle {
+  opacity: 1;
+}
+
+/* ── 行拖拽状态（分组 & 任务通用）──
+   指示线用伪元素绘制并置于冻结列(z-index:10)之上，
+   否则 inset box-shadow 会被冻结列背景遮住 */
+.rowDragging {
   opacity: 0.4;
 }
-.groupDragOverAbove {
-  box-shadow: inset 0 3px 0 0 #0078d4;
+.dropAbove::after,
+.dropBelow::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--color-primary, #2563eb);
+  z-index: 15;
+  pointer-events: none;
+  border-radius: 2px;
 }
-.groupDragOverBelow {
-  box-shadow: inset 0 -3px 0 0 #0078d4;
+.dropAbove::after { top: -1px; }
+.dropBelow::after { bottom: -2px; }
+.dropAbove::before,
+.dropBelow::before {
+  /* 指示线左端的小圆点，提示插入位置 */
+  content: '';
+  position: absolute;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--color-primary, #2563eb);
+  background: var(--color-surface, #fff);
+  z-index: 16;
+  pointer-events: none;
+}
+.dropAbove::before { top: -5px; }
+.dropBelow::before { bottom: -6px; }
+.dropInside::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px dashed var(--color-primary, #2563eb);
+  background: rgba(37, 99, 235, 0.08);
+  z-index: 15;
+  pointer-events: none;
+  border-radius: 3px;
+}
+/* 行拖拽进行中：禁用任务条悬浮动画，减少干扰 */
+.ganttRowDragging .taskBar,
+.ganttRowDragging .milestone {
+  transition: none;
 }
 
 .groupColor {
@@ -333,11 +384,9 @@
 
 .groupName {
   flex: 1;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -346,11 +395,9 @@
 /* editable group name */
 .groupNameEditable {
   flex: 1;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -371,14 +418,12 @@
   flex: 1;
   min-width: 0;
   padding: 2px 6px;
-  font-size: 13px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
+  font-size: 12.5px;
+  font-weight: 600;
   border: 1.5px solid var(--color-primary);
-  border-radius: 2px;
+  border-radius: 3px;
   outline: none;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 /* group action buttons (add task / delete group) */
@@ -412,12 +457,12 @@
 }
 
 .groupDeleteBtn {
-  border-color: var(--color-error, #d32f2f);
-  color: var(--color-error, #d32f2f);
+  border-color: var(--color-error, #dc2626);
+  color: var(--color-error, #dc2626);
 }
 
 .groupDeleteBtn:hover {
-  background: var(--color-error, #d32f2f);
+  background: var(--color-error, #dc2626);
   color: #fff;
 }
 
@@ -443,15 +488,13 @@
 }
 
 .timelineGroupLabel {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  padding: 2px 8px;
-  border-left: 3px solid;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--group-ink, var(--color-text-secondary));
+  padding: 1px 8px;
+  border-left: 3px solid var(--group-color, var(--color-border));
   margin-left: 8px;
-  opacity: 0.7;
+  white-space: nowrap;
 }
 
 .timelineGroupCollapsed {
@@ -465,22 +508,23 @@
    ================================================================ */
 
 /* milestone group header row */
+/* 底边框由内部单元格绘制，行本身不再加边框（否则两层叠加成一条深线） */
 .milestoneGroupRow {
-  border-bottom: 0.6px solid #d83b01;
+  border-bottom: none;
 }
 
 .frozenMilestoneGroupCell {
-  background: #fef6f1 !important;
-  border-bottom: 0.6px solid #d83b01 !important;
+  background: var(--gantt-band) !important;
+  border-bottom: 1px solid var(--color-border) !important;
 }
 
 .frozenMilestoneGroupCell:hover {
-  background: #fde8dd !important;
+  background: var(--gantt-band-hover) !important;
 }
 
 .milestoneGroupIcon {
-  font-size: 16px;
-  color: #d83b01;
+  font-size: 14px;
+  color: var(--group-color);
   flex-shrink: 0;
   line-height: 1;
 }
@@ -490,9 +534,9 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 1.5px solid #d83b01;
+  border: 1.5px solid var(--group-color);
   background: transparent;
-  color: #d83b01;
+  color: var(--group-color);
   font-size: 14px;
   font-weight: 700;
   line-height: 1;
@@ -501,12 +545,12 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: all 0.15s ease;
+  transition: all var(--transition-fast);
   padding: 0;
 }
 
 .addMilestoneBtn:hover {
-  background: #d83b01;
+  background: var(--group-color);
   color: #fff;
 }
 
@@ -524,15 +568,15 @@
   font-size: 11px;
   font-weight: 600;
   border: none;
-  border-radius: 3px;
-  background: #d83b01;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
   color: #fff;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background var(--transition-fast);
 }
 
 .addMilestoneSave:hover {
-  background: #a62d00;
+  background: var(--color-primary-hover);
 }
 
 .addMilestoneCancel {
@@ -540,20 +584,20 @@
   font-size: 11px;
   font-weight: 500;
   border: 1px solid var(--color-border);
-  border-radius: 3px;
-  background: transparent;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background var(--transition-fast);
 }
 
 .addMilestoneCancel:hover {
-  background: var(--color-background);
+  background: var(--color-surface-hover);
 }
 
 .timelineMilestoneGroupCell {
-  background: #fef6f1 !important;
-  border-bottom: 0.6px solid #d83b01 !important;
+  background: var(--gantt-band) !important;
+  border-bottom: 1px solid var(--color-border) !important;
   /* allow milestone markers to be positioned within */
   position: relative;
   overflow: visible;
@@ -569,15 +613,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.15s ease;
+  transition: transform var(--transition-fast);
 }
 
 .collapsedMilestoneMarker:hover {
-  transform: translate(-50%, -50%) scale(1.4);
-}
-
-.collapsedMilestoneMarker:hover .collapsedMilestoneLabel {
-  opacity: 1;
+  transform: translate(-50%, -50%) scale(1.25);
+  z-index: 7;
 }
 
 .collapsedMilestoneMarker svg {
@@ -585,56 +626,64 @@
   flex-shrink: 0;
 }
 
-/* label text beside collapsed milestone marker */
+/* label text beside collapsed milestone marker — 跟随分组字号，略小一号 */
 .collapsedMilestoneLabel {
   position: absolute;
   top: 50%;
   left: 100%;
   transform: translateY(-50%);
-  margin-left: 3px;
-  font-size: 9px;
-  font-weight: 600;
-  color: #d83b01;
+  margin-left: 4px;
+  font-size: max(10px, calc(var(--ms-font-size, 12px) - 2px));
+  font-weight: var(--ms-font-weight, 500);
+  color: var(--group-ink);
   white-space: nowrap;
-  background: rgba(254, 246, 241, 0.95);
-  padding: 1px 4px;
-  border-radius: 2px;
-  border: 1px solid rgba(216, 59, 1, 0.2);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: rgba(255, 255, 255, 0.94);
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--group-line);
   pointer-events: none;
-  line-height: 1.2;
+  line-height: 1.3;
   z-index: 6;
 }
 
 /* milestone data row */
 .milestoneRow {
-  background: #fffbf8;
+  background: transparent;
 }
 
 .frozenMilestoneCell {
-  background: #fffbf8 !important;
+  background: var(--color-surface) !important;
+}
+
+.milestoneRow:hover > .frozenCell {
+  background: var(--color-surface-hover) !important;
 }
 
 .milestoneDate {
   width: 64px;
   flex-shrink: 0;
   font-size: 11px;
-  color: #d83b01;
+  color: var(--group-ink);
   font-weight: 500;
   text-align: right;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* clickable milestone date text */
 .milestoneDateText {
   cursor: pointer;
   padding: 2px 4px;
-  border-radius: 2px;
-  transition: background 0.15s ease;
-  border-bottom: 1px dashed #d83b01;
+  border-radius: 3px;
+  transition: background var(--transition-fast);
+  border-bottom: 1px dashed var(--group-line);
 }
 
 .milestoneDateText:hover {
-  background: #fde8dd;
+  background: var(--group-tint-strong);
 }
 
 /* milestone date inline input */
@@ -643,12 +692,12 @@
   max-width: 60px;
   padding: 1px 2px;
   font-size: 10px;
-  border: 1.5px solid #d83b01;
-  border-radius: 2px;
+  border: 1.5px solid var(--group-color, var(--color-primary));
+  border-radius: 3px;
   outline: none;
-  background: #fff;
-  color: #d83b01;
-  box-shadow: 0 2px 6px rgba(216, 59, 1, 0.15);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-sm);
 }
 
 .milestoneDateInput::-webkit-calendar-picker-indicator {
@@ -664,7 +713,8 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  border-left: 1px dashed rgba(216, 59, 1, 0.2);
+  border-left: 1px dashed var(--group-line);
+  opacity: 0.6;
   pointer-events: none;
   z-index: 0;
 }
@@ -691,15 +741,20 @@
 }
 
 .milestoneIndicator {
-  font-size: 14px;
-  color: #d83b01;
+  font-size: 13px;
+  color: var(--group-color);
   flex-shrink: 0;
   line-height: 1;
 }
 
+/* 左侧列表的里程碑名称：跟随分组字号（上限 15px 以免撑破行高） */
+/* 左侧列表的里程碑名称：比任务(11px)略大一号，常规字重，用分组墨水色而非加粗来区分。
+   分组的字号/加粗设置只作用于时间轴标签，不影响左侧列表，保证列表整齐。 */
 .milestoneNameText {
-  font-style: italic;
-  color: var(--color-text-secondary);
+  color: var(--group-ink, var(--color-text));
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
 }
 
 .taskNameText {
@@ -724,7 +779,7 @@
   border-radius: 50%;
   border: none;
   background: transparent;
-  color: var(--color-error, #d32f2f);
+  color: var(--color-error, #dc2626);
   font-size: 13px;
   font-weight: 700;
   line-height: 1;
@@ -745,12 +800,12 @@
 
 .taskDeleteBtn:hover {
   opacity: 1 !important;
-  background: rgba(211, 47, 47, 0.1);
+  background: rgba(220, 38, 38, 0.1);
 }
 
 /* task row hover */
 .taskRow:hover > .frozenCell {
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--color-surface-hover);
 }
 
 /* add task indicator */
@@ -836,9 +891,9 @@
   position: absolute;
   top: 8px;
   height: 20px;
-  border-radius: 3px;
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
+  border-radius: 4px;
+  box-shadow: var(--shadow-xs);
+  cursor: grab;
   transition: box-shadow 0.2s ease, transform 0.2s ease;
   overflow: visible;
 }
@@ -888,6 +943,18 @@
   user-select: none !important;
 }
 
+/* 整体平移任务条/里程碑 */
+.ganttMoving,
+.ganttMoving * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+.milestone.milestoneMoving {
+  transition: none;
+  filter: drop-shadow(0 0 3px rgba(37, 99, 235, 0.55));
+}
+
 .taskBar:hover {
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
@@ -903,7 +970,9 @@
   top: 0;
   left: 0;
   bottom: 0;
-  border-radius: 3px 0 0 3px;
+  background: var(--gantt-bar-progress);
+  border-radius: 4px 0 0 4px;
+  pointer-events: none;
   transition: width 0.3s ease;
 }
 
@@ -914,12 +983,11 @@
   top: 50%;
   transform: translateY(-50%);
   font-size: 12px;
-  color: white;
+  color: var(--bar-text, #fff);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 500;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .taskBarDuration {
@@ -927,12 +995,13 @@
   right: 4px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.85);
+  font-size: 10.5px;
+  color: var(--bar-text, #fff);
+  opacity: 0.9;
   white-space: nowrap;
   font-weight: 600;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-  background: rgba(0, 0, 0, 0.15);
+  font-variant-numeric: tabular-nums;
+  background: transparent;
   padding: 0 3px;
   border-radius: 3px;
   line-height: 14px;
@@ -943,9 +1012,9 @@
   right: -2px;
   top: -10px;
   font-size: 8px;
-  color: #0078d4;
-  background: #e8f4fd;
-  border: 1px solid #b3d7f0;
+  color: var(--color-primary);
+  background: var(--color-primary-50);
+  border: 1px solid var(--color-primary-light);
   padding: 0 3px;
   border-radius: 3px;
   line-height: 13px;
@@ -982,6 +1051,7 @@
   transform: rotate(45deg);
   flex-shrink: 0;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
 }
 
 .milestoneDiamondLg {
@@ -996,19 +1066,20 @@
 
 .milestoneLabel {
   position: absolute;
-  left: 18px;
+  left: 20px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 12px;
-  color: var(--color-text);
+  font-size: var(--ms-font-size, 12px);
+  font-weight: var(--ms-font-weight, 500);
+  line-height: 1.3;
+  color: var(--group-ink, var(--color-text));
   white-space: nowrap;
-  font-weight: 500;
-  background: rgba(255, 255, 255, 0.95);
-  padding: 2px 5px;
+  background: var(--color-surface);
+  padding: 1px 6px;
   border-radius: 3px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  box-shadow: none;
   pointer-events: none;
-  border-left: 2px solid #d83b01;
+  border-left: 3px solid var(--group-color, var(--color-primary));
 }
 
 .milestoneInlineInput {
@@ -1016,17 +1087,17 @@
   left: 18px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 11px;
-  font-weight: 500;
+  font-size: var(--ms-font-size, 12px);
+  font-weight: var(--ms-font-weight, 500);
   color: var(--color-text);
-  background: #fff;
-  border: 1.5px solid #d83b01;
+  background: var(--color-surface);
+  border: 1.5px solid var(--group-color, var(--color-primary));
   border-radius: 3px;
   padding: 2px 6px;
   outline: none;
   min-width: 80px;
-  max-width: 160px;
-  box-shadow: 0 2px 8px rgba(211, 59, 1, 0.15);
+  max-width: 200px;
+  box-shadow: var(--shadow-md);
   z-index: 20;
 }
 
@@ -1059,164 +1130,284 @@
   position: fixed;
   z-index: 200;
   display: flex;
-  align-items: center;
-  gap: 4px;
-  background: rgba(255, 255, 255, 0.97);
+  align-items: stretch;
+  gap: 6px;
+  max-width: calc(100vw - 16px);
+  background: rgba(255, 255, 255, 0.98);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.13);
-  padding: 3px 6px;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.1), 0 1px 3px rgba(15, 23, 42, 0.06);
+  padding: 6px 8px 6px 4px;
   user-select: none;
   cursor: default;
+  font-size: 11px;
 }
 
+.toolbarCollapsed {
+  padding: 4px 6px 4px 2px;
+  border-radius: var(--radius-full);
+}
+
+/* 拖拽手柄：纵向贯穿两行 */
 .toolbarDragHandle {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 26px;
-  color: var(--color-text-secondary, #a0a0a0);
+  width: 16px;
+  color: var(--color-text-tertiary);
   cursor: grab;
   flex-shrink: 0;
-  border-radius: 3px;
-  transition: color 0.15s;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast), background var(--transition-fast);
 }
 
 .toolbarDragHandle:hover {
-  color: var(--color-text, #333);
-  background: var(--color-surface-hover, #f0f0f0);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-hover);
 }
 
 .toolbarDragHandle:active {
   cursor: grabbing;
 }
 
-.zoomBtn {
+/* 2×2 分区网格：左列 时间轴/行，右列 缩放/导出 */
+.toolbarGrid {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 14px;
+  row-gap: 6px;
+  align-items: center;
+}
+
+@media (max-width: 960px) {
+  .toolbarGrid {
+    grid-template-columns: auto;
+  }
+}
+
+.toolbarSection {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.15s;
+  gap: 6px;
+  min-height: 28px;
+  white-space: nowrap;
 }
 
-.zoomBtn:hover:not(:disabled) {
-  background: var(--color-surface-hover, #f0f0f0);
-  color: var(--color-text);
+/* 右列与左列之间的细分隔线 */
+.toolbarSection:nth-child(even) {
+  padding-left: 14px;
+  border-left: 1px solid var(--color-border-light);
 }
 
-.zoomBtn:disabled {
-  opacity: 0.3;
-  cursor: default;
+@media (max-width: 960px) {
+  .toolbarSection:nth-child(even) {
+    padding-left: 0;
+    border-left: none;
+  }
 }
 
-.zoomFitBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: none;
-  background: transparent;
-  color: var(--color-primary, #0078d4);
-  cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.15s;
-}
-
-.zoomFitBtn:hover {
-  background: rgba(0, 120, 212, 0.08);
-}
-
-.zoomLevel {
+.toolbarSectionLabel {
+  width: 54px;
+  flex-shrink: 0;
   font-size: 10px;
-  color: var(--color-text-secondary);
-  padding: 0 4px;
-  min-width: 36px;
-  text-align: center;
-  user-select: none;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
 }
 
-.zoomSeparator {
+.toolbarSection:nth-child(even) .toolbarSectionLabel {
+  width: 44px;
+}
+
+.toolbarDivider {
   width: 1px;
   height: 16px;
   background: var(--color-border);
   margin: 0 2px;
 }
 
-/* Date range inputs */
-.dateRangeLabel {
+/* 通用工具按钮：图标 + 文字，描边风格 */
+.toolBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
   font-size: 11px;
-  color: var(--color-text-secondary);
+  font-weight: 500;
+  cursor: pointer;
   white-space: nowrap;
-  user-select: none;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
-.dateRangeInput {
-  height: 24px;
-  padding: 0 4px;
-  font-size: 11px;
+.toolBtn svg {
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.toolBtn:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  border-color: var(--color-text-tertiary);
+}
+
+.toolBtn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* 分段按钮组（缩放、图片导出） */
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
   border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-surface, #fff);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.segBtn {
+  height: 100%;
+  min-width: 26px;
+  padding: 0 7px;
+  border: none;
+  border-right: 1px solid var(--color-border-light);
+  background: transparent;
+  color: var(--color-text);
+  font-size: 11px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.segBtn:last-child {
+  border-right: none;
+}
+
+.segBtn:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.segBtn:disabled {
+  color: var(--color-text-tertiary);
+  cursor: default;
+}
+
+.zoomLevel {
+  min-width: 52px;
+  padding: 0 4px;
+  text-align: center;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+  border-right: 1px solid var(--color-border-light);
+  border-left: 1px solid var(--color-border-light);
+  line-height: 24px;
+}
+
+/* 日期范围 */
+.dateRangeInput {
+  height: 26px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-family: inherit;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
   color: var(--color-text);
   cursor: pointer;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color var(--transition-fast);
+}
+
+.dateRangeInput:hover {
+  border-color: var(--color-text-tertiary);
 }
 
 .dateRangeInput:focus {
-  border-color: var(--color-primary, #0078d4);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-light);
 }
 
-.autoFitBtn {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  height: 26px;
-  padding: 0 7px;
-  border: none;
-  background: transparent;
-  color: var(--color-primary, #0078d4);
+.dateRangeArrow {
+  color: var(--color-text-tertiary);
   font-size: 11px;
-  cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.15s;
-  white-space: nowrap;
 }
 
-.autoFitBtn:hover {
-  background: rgba(0, 120, 212, 0.08);
+/* Excel：唯一带品牌色的主操作 */
+.exportExcelBtn {
+  border-color: #15803d;
+  background: #15803d;
+  color: #fff;
 }
 
-/* Export buttons */
-.exportBtn {
-  display: flex;
+.exportExcelBtn svg {
+  color: #fff;
+}
+
+.exportExcelBtn:hover:not(:disabled) {
+  background: #166534;
+  border-color: #166534;
+}
+
+/* 收起 / 展开 */
+.toolbarMinBtn {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: none;
-  background: transparent;
-  color: var(--color-primary, #0078d4);
   cursor: pointer;
-  border-radius: 4px;
-  transition: all 0.15s;
 }
 
-.exportBtn:hover {
-  background: rgba(0, 120, 212, 0.08);
-  color: var(--color-primary, #005a9e);
+.toolbarMinBtn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
 }
 
-.exportBtn:active {
-  background: rgba(0, 120, 212, 0.15);
+.toolbarExpandBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px 0 6px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toolbarExpandBtn:hover {
+  background: var(--color-surface-hover);
+}
+
+.markerCount {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-error);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
 }
 
 /* ================================================================
@@ -1365,7 +1556,7 @@
   top: 0;
   bottom: 0;
   width: var(--marker-thickness, 2px);
-  background: var(--marker-color, #e00);
+  background: var(--marker-color, #dc2626);
   z-index: 3;
   pointer-events: none;
 }
@@ -1427,27 +1618,9 @@
 }
 
 .markerActive {
-  color: #e00 !important;
+  border-color: #fecaca;
 }
 
-.markerBadge {
-  position: absolute;
-  top: -2px;
-  right: -4px;
-  min-width: 14px;
-  height: 14px;
-  font-size: 9px;
-  font-weight: 700;
-  color: #fff;
-  background: #e00;
-  border-radius: 7px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 3px;
-  pointer-events: none;
-  line-height: 1;
-}
 
 /* Marker add popover */
 .markerPopover {
@@ -1553,14 +1726,14 @@
   font-weight: 600;
   border: none;
   border-radius: 4px;
-  background: var(--color-primary, #0078d4);
+  background: var(--color-primary, #2563eb);
   color: #fff;
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .markerSaveBtn:hover {
-  background: #005a9e;
+  background: #1d4ed8;
 }
 
 .markerCancelBtn {
@@ -1625,7 +1798,7 @@
   height: 14px;
   border: none;
   background: transparent;
-  color: var(--color-error, #d32f2f);
+  color: var(--color-error, #dc2626);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -1643,5 +1816,13 @@
 }
 
 .markerListRemove:hover {
-  background: rgba(211, 47, 47, 0.1);
+  background: rgba(220, 38, 38, 0.1);
+}
+
+/* 工具栏位于屏幕下半部分时，弹层向上展开，避免超出视口 */
+.zoomToolbar[data-open-up='true'] .markerPopover {
+  top: auto;
+  bottom: 100%;
+  margin-top: 0;
+  margin-bottom: 8px;
 }

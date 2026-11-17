@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { Task, Project, Bucket, User, Label, ViewType, TimeUnit, Dependency, VerticalMarker } from '@/types'
 import { db } from '@/db'
+import { DEFAULT_TASK_COLOR } from '@/utils/colors'
 
 interface AppStore {
   // ============================================
@@ -47,6 +48,8 @@ interface AppStore {
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>
   updateTask: (taskId: string, updates: Partial<Task>) => Promise<void>
   deleteTask: (taskId: string) => Promise<void>
+  /** 批量更新任务（拖拽重排/跨分组移动），单事务 + 单次状态更新 */
+  bulkUpdateTasks: (updates: { id: string; changes: Partial<Task> }[]) => Promise<void>
   moveTask: (taskId: string, newStartDate: Date, newDueDate: Date) => Promise<void>
   addDependency: (taskId: string, dependsOnTaskId: string, lagDays?: number) => Promise<void>
   removeDependency: (taskId: string, dependsOnTaskId: string) => Promise<void>
@@ -65,6 +68,7 @@ interface AppStore {
   addBucket: (bucket: Omit<Bucket, 'id' | 'projectId'> & { projectId?: string }) => Promise<Bucket>
   updateBucket: (bucketId: string, updates: Partial<Bucket>) => Promise<void>
   deleteBucket: (bucketId: string) => Promise<void>
+  bulkUpdateBuckets: (updates: { id: string; changes: Partial<Bucket> }[]) => Promise<void>
 
   // ============================================
   // 垂直标记线操作
@@ -185,7 +189,7 @@ export const useAppStore = create<AppStore>()(
           if (!taskColor) {
             const state = get()
             const bucket = state.buckets.find(b => b.id === taskData.bucketId)
-            taskColor = bucket?.color || '#0078d4' // 使用分组颜色，如果没有则默认蓝色
+            taskColor = bucket?.color || DEFAULT_TASK_COLOR // 使用分组颜色，如果没有则默认蓝色
           }
           
           const task: Task = {
@@ -258,6 +262,23 @@ export const useAppStore = create<AppStore>()(
           set((state) => ({
             tasks: state.tasks.filter((task) => task.id !== taskId)
           }))
+        },
+
+        bulkUpdateTasks: async (updates) => {
+          if (updates.length === 0) return
+          // 先乐观更新界面，拖拽结果立即可见；写库失败则回滚
+          const snapshot = get().tasks
+          const byId = new Map(updates.map((u) => [u.id, u.changes]))
+          const now = new Date()
+          set((state) => ({
+            tasks: state.tasks.map((t) => (byId.has(t.id) ? { ...t, ...byId.get(t.id), updatedAt: now } : t))
+          }))
+          try {
+            await db.bulkUpdateTasks(updates)
+          } catch (err) {
+            console.error('bulkUpdateTasks failed, rolling back', err)
+            set({ tasks: snapshot })
+          }
         },
 
         moveTask: async (taskId, newStartDate, newDueDate) => {
@@ -386,6 +407,21 @@ export const useAppStore = create<AppStore>()(
               b.id === bucketId ? { ...b, ...updates } : b
             )
           }))
+        },
+
+        bulkUpdateBuckets: async (updates) => {
+          if (updates.length === 0) return
+          const snapshot = get().buckets
+          const byId = new Map(updates.map((u) => [u.id, u.changes]))
+          set((state) => ({
+            buckets: state.buckets.map((b) => (byId.has(b.id) ? { ...b, ...byId.get(b.id) } : b))
+          }))
+          try {
+            await db.bulkUpdateBuckets(updates)
+          } catch (err) {
+            console.error('bulkUpdateBuckets failed, rolling back', err)
+            set({ buckets: snapshot })
+          }
         },
 
         deleteBucket: async (bucketId) => {

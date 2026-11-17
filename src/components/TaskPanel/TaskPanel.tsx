@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useAppStore } from '@/store/appStore'
 import { Task, TaskStatus, TaskPriority, TaskType, DeadlineConstraint } from '@/types'
 import { formatDate, formatDateTime, getDaysBetween } from '@/utils/date'
-import { STATUS_COLORS, TASK_COLORS, DEFAULT_TASK_COLOR } from '@/utils/colors'
+import { STATUS_COLORS, PALETTE, DEFAULT_TASK_COLOR, resolveColor } from '@/utils/colors'
 import styles from './TaskPanel.module.css'
 
 export default function TaskPanel() {
@@ -177,13 +177,13 @@ export default function TaskPanel() {
           <div className={styles.section}>
             <label className={styles.label}>Task Color</label>
             <div className={styles.colorPicker}>
-              {TASK_COLORS.map((color) => (
+              {PALETTE.map(({ hex: color, name }) => (
                 <button
                   key={color}
-                  className={`${styles.colorOption} ${(task.color || bucket?.color || DEFAULT_TASK_COLOR) === color ? styles.isActive : ''}`}
+                  className={`${styles.colorOption} ${resolveColor(task.color || bucket?.color, DEFAULT_TASK_COLOR) === color ? styles.isActive : ''}`}
                   style={{ backgroundColor: color }}
                   onClick={() => handleUpdate('color', color)}
-                  title={color}
+                  title={name}
                 />
               ))}
             </div>
@@ -362,11 +362,11 @@ export default function TaskPanel() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                           <span>📎 {depTask.title}</span>
                           {violated ? (
-                            <span style={{ fontSize: '11px', color: '#e00', fontWeight: 'bold' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--color-error)', fontWeight: 'bold' }}>
                               ⚠ Delayed {delayDays}d{lagDays > 0 ? ` (constraint +${lagDays}d)` : ''}
                             </span>
                           ) : lagDays > 0 ? (
-                            <span style={{ fontSize: '11px', color: '#0078d4', fontWeight: 'bold' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--color-primary)', fontWeight: 'bold' }}>
                               (constraint: +{lagDays}d ✓)
                             </span>
                           ) : null}

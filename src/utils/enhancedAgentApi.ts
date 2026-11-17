@@ -10,6 +10,7 @@
  */
 
 import type { Task, Bucket } from '@/types';
+import { parseLocalDate } from './date';
 
 // Use the same base URL as v1 — both served by one backend
 const AI_SERVICE_URL = import.meta.env.VITE_AGENT_SERVICE_URL || 'http://localhost:8000';
@@ -355,8 +356,8 @@ export function convertDecomposedTasks(
       title: task.title,
       description: '',
       taskType: 'task',
-      startDateTime: new Date(task.start_date),
-      dueDateTime: new Date(task.end_date),
+      startDateTime: parseLocalDate(task.start_date),
+      dueDateTime: parseLocalDate(task.end_date),
       status: 'NotStarted',
       priority: task.priority as any || 'Normal',
       color: undefined,

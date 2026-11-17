@@ -45,6 +45,19 @@
   --color-status-in-progress: #2563eb;
   --color-status-completed: #16a34a;
 
+  /* 甘特图 */
+  /* 三层中性底色：画布(时间轴) < 纸面(左侧列表/表头/工具栏) < 分组色带 */
+  --gantt-canvas: #f8fafc;
+  --gantt-paper: #ffffff;
+  --gantt-band: #eef2f6;
+  --gantt-band-hover: #e6ebf1;
+  --gantt-grid-stripe: rgba(15, 23, 42, 0.022);
+  --gantt-grid-line: rgba(15, 23, 42, 0.07);
+  --gantt-group-bg: var(--gantt-band);
+  --gantt-group-bg-hover: var(--gantt-band-hover);
+  --gantt-row-hover: rgba(15, 23, 42, 0.025);
+  --gantt-bar-progress: rgba(15, 23, 42, 0.24);
+
   /* 阴影 */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);

@@ -354,7 +354,7 @@
 
 .durationInput:focus {
   outline: none;
-  border-color: var(--color-primary, #0078d4);
+  border-color: var(--color-primary, #2563eb);
   box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.15);
 }
 
@@ -372,8 +372,8 @@
 
 /* ── 截止日期约束 ── */
 .constraintDisplay {
-  background: #f0f7ff;
-  border: 1px solid #bdd8f5;
+  background: var(--color-primary-50);
+  border: 1px solid var(--color-primary-light);
   border-radius: 6px;
   padding: 10px 12px;
 }
@@ -389,11 +389,11 @@
 
 .constraintIcon {
   font-size: 14px;
-  color: #d83b01;
+  color: var(--color-warning-ink, #b45309);
 }
 
 .constraintText strong {
-  color: var(--color-primary, #0078d4);
+  color: var(--color-primary, #2563eb);
 }
 
 .constraintActions {
@@ -474,12 +474,12 @@
 }
 
 .constraintRefBtn:hover {
-  background: #f0f7ff;
-  border-color: var(--color-primary, #0078d4);
+  background: var(--color-primary-50);
+  border-color: var(--color-primary, #2563eb);
 }
 
 .constraintRefIcon {
-  color: #d83b01;
+  color: var(--color-warning-ink, #b45309);
   font-size: 12px;
 }
 

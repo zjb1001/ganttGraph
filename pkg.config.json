@@ -1,0 +1,7 @@
+{
+  "name": "gantt-graph-launcher",
+  "pkg": {
+    "assets": ["dist/**/*"],
+    "outputPath": "release"
+  }
+}

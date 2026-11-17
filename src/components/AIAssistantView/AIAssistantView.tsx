@@ -7,6 +7,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { sendChatMessage, checkAgentHealth, type AgentResponse, type AgentAction } from '@/utils/agentApi';
 import { executeAgentActions } from '@/utils/agentTools';
+import { parseLocalDate } from '@/utils/date';
 import {
   decomposeProject,
   analyzeProjectRisks,
@@ -188,7 +189,7 @@ export default function AIAssistantView() {
               else { const newBucket = await addBucket({ name: task.phase, order: phaseBuckets.size, projectId: currentProjectId }); phaseBuckets.set(task.phase, newBucket.id); }
             }
             await addTask({
-              title: task.title, startDateTime: new Date(task.start_date), dueDateTime: new Date(task.end_date),
+              title: task.title, startDateTime: parseLocalDate(task.start_date), dueDateTime: parseLocalDate(task.end_date),
               priority: task.priority === 'Urgent' ? 'Urgent' : task.priority === 'Important' ? 'Important' : task.priority === 'Low' ? 'Low' : 'Normal',
               status: 'NotStarted', bucketId: phaseBuckets.get(task.phase) || buckets[0]?.id || '',
               projectId: currentProjectId, order: 0, taskType: 'task', assigneeIds: [], labelIds: [],

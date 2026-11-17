@@ -53,6 +53,8 @@ export interface Bucket {
   order: number
   color?: string
   bucketType?: 'task' | 'milestone'  // 分组类型：普通任务分组 或 里程碑分组
+  labelFontSize?: number  // 里程碑标签字号(px)，未设置时用默认值
+  labelBold?: boolean     // 里程碑标签是否加粗
 }
 
 // 垂直标记线

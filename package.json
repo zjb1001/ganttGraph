@@ -1,6 +1,6 @@
 {
   "name": "gantt-graph",
-  "version": "0.2.0",
+  "version": "0.2.4",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +11,7 @@
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
-    "build:exe": "npm run build && pkg . --targets node18-win-x64 --output release/gantt-graph.exe",
+    "build:exe": "npm run build && pkg launcher.cjs --config pkg.config.json --targets node18-win-x64 --output release/gantt-graph.exe",
     "start": "bash start.sh",
     "start:all": "bash start.sh",
     "prepare": "husky install"
@@ -22,6 +22,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "dexie": "^4.0.11",
     "dexie-react-hooks": "^1.1.7",
+    "exceljs": "^4.4.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.0",
     "react": "^18.3.1",

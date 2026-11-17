@@ -6,6 +6,8 @@
 import { useAppStore } from '@/store/appStore';
 import type { Task, Bucket, TaskStatus, TaskPriority, TaskType } from '@/types';
 import { AgentAction } from './agentApi';
+import { parseLocalDate } from './date';
+import { nextPaletteColor } from './colors';
 
 /**
  * Calculate similarity between two strings
@@ -107,7 +109,7 @@ function findBestTaskByTitle(tasks: Task[], title: string): { task: Task | undef
  * Parse date string to Date object
  */
 function parseDate(dateStr: string): Date {
-  return new Date(dateStr);
+  return parseLocalDate(dateStr);
 }
 
 /**
@@ -326,7 +328,7 @@ export async function executeAgentAction(action: AgentAction): Promise<string> {
 
         await store.addBucket({
           name,
-          color: color || '#0078d4',
+          color: color || nextPaletteColor(buckets.length),
           bucketType: bucketType === 'milestone' ? 'milestone' : 'task',
           order: buckets.length + 1,
           projectId: currentProjectId || '',

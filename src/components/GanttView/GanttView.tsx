@@ -1,9 +1,19 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { useAppStore } from '@/store/appStore'
-import { STATUS_COLORS, PRIORITY_COLORS } from '@/utils/colors'
-import { getDaysBetween, isToday } from '@/utils/date'
+import {
+  PRIORITY_COLORS, GANTT_COLORS, DEFAULT_MILESTONE_COLOR, MILESTONE_FONT_DEFAULT,
+  resolveColor, inkColor, tint, getContrastColor, nextPaletteColor,
+} from '@/utils/colors'
+import { calendarDaysBetween as getDaysBetween, isToday, parseLocalDate } from '@/utils/date'
+import { planTaskMove, planBucketReorder, dropTargetFromTaskRow, sortTasksInBucket, TaskDropTarget } from '@/utils/ganttDnd'
 import { Task, Bucket } from '@/types'
 
+const ROW_HEIGHT = 36
+const AUTO_SCROLL_EDGE = 48 // 拖拽时距离滚动容器边缘多少像素开始自动滚动
+const AUTO_SCROLL_MAX_SPEED = 18
+const HEADER_HEIGHT = 44 // 月(24) + 周(20)
+
+import GroupStyleButton from './GroupStylePopover'
 import styles from './GanttView.module.css'
 
 // 日期信息接口
@@ -18,7 +28,7 @@ interface DateInfo {
 }
 
 export default function GanttView() {
-  const { tasks, buckets, currentProjectId, setSelectedTaskId, addDependency, removeDependency, updateTask, addTask, deleteTask, addBucket, updateBucket, deleteBucket, projects, updateProject, collapsedBucketIds: collapsedBuckets, toggleBucketCollapse, collapseBucketsByType, verticalMarkers, addMarker, deleteMarker, updateMarker } = useAppStore()
+  const { tasks, buckets, currentProjectId, setSelectedTaskId, addDependency, removeDependency, updateTask, addTask, deleteTask, addBucket, updateBucket, deleteBucket, projects, updateProject, collapsedBucketIds: collapsedBuckets, toggleBucketCollapse, collapseBucketsByType, verticalMarkers, addMarker, deleteMarker, bulkUpdateTasks, bulkUpdateBuckets } = useAppStore()
   
   const ganttRef = useRef<HTMLDivElement>(null)
   const ganttScrollRef = useRef<HTMLDivElement>(null)
@@ -38,7 +48,7 @@ export default function GanttView() {
   // 新增里程碑分组
   const [addingMilestoneGroup, setAddingMilestoneGroup] = useState(false)
   const [newMilestoneGroupName, setNewMilestoneGroupName] = useState('')
-  const [newMilestoneGroupColor, setNewMilestoneGroupColor] = useState('#d83b01')
+  const [newMilestoneGroupColor, setNewMilestoneGroupColor] = useState<string>(DEFAULT_MILESTONE_COLOR)
   // 分组名称编辑
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [editingGroupName, setEditingGroupName] = useState('')
@@ -84,7 +94,7 @@ export default function GanttView() {
   const [addingMarker, setAddingMarker] = useState(false)
   const [newMarkerDate, setNewMarkerDate] = useState('')
   const [newMarkerLabel, setNewMarkerLabel] = useState('')
-  const [newMarkerColor, setNewMarkerColor] = useState('#e00000')
+  const [newMarkerColor, setNewMarkerColor] = useState('#dc2626')
   const [newMarkerThickness, setNewMarkerThickness] = useState(2)
   // Column resize (task name vs progress)
   const [taskListWidth, setTaskListWidth] = useState(360)
@@ -93,20 +103,27 @@ export default function GanttView() {
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null)
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null)
   const [dragOverPosition, setDragOverPosition] = useState<'above' | 'below'>('below')
+  // 任务上下拖拽（跨分组归拢 / 组内排序）
+  const [draggingTask, setDraggingTask] = useState<{ id: string; isMilestone: boolean } | null>(null)
+  // 落点指示：rowKey 为 'task:<id>' 或 'group:<bucketId>'
+  const [taskDropHint, setTaskDropHint] = useState<{ rowKey: string; position: 'above' | 'below' | 'inside' } | null>(null)
 
-  // 任务条拖拽调整时长
+  // 任务条拖拽：left/right 调整起止，move 整体平移
+  type BarDragMode = 'left' | 'right' | 'move'
   const resizingRef = useRef<{
     taskId: string
-    handle: 'left' | 'right'
+    handle: BarDragMode
     startX: number
     origStart: Date
     origEnd: Date
+    isMilestone: boolean
   } | null>(null)
-  const resizePreviewRef = useRef<{ taskId: string; start: Date; end: Date } | null>(null)
-  const [resizePreview, setResizePreview] = useState<{ taskId: string; start: Date; end: Date } | null>(null)
+  type BarPreview = { taskId: string; start: Date; end: Date; mode: BarDragMode }
+  const resizePreviewRef = useRef<BarPreview | null>(null)
+  const [resizePreview, setResizePreview] = useState<BarPreview | null>(null)
   const justResizedRef = useRef(false)
 
-  const projectTasks = tasks.filter((t) => t.projectId === currentProjectId)
+  const projectTasks = useMemo(() => tasks.filter((t) => t.projectId === currentProjectId), [tasks, currentProjectId])
 
   // 当前项目的分组（state.buckets 已按项目隔离加载，同时保留 projectId='' 的迁移遗留分组）
   const currentProjectBuckets = useMemo(() =>
@@ -181,7 +198,7 @@ export default function GanttView() {
       const defaultBucket = await addBucket({
         name: 'Milestones',
         order: 0,
-        color: '#d83b01',
+        color: DEFAULT_MILESTONE_COLOR,
         bucketType: 'milestone',
         projectId: currentProjectId
       })
@@ -236,7 +253,7 @@ export default function GanttView() {
   // 行项目：里程碑分组 + 普通分组标题行 + 任务行
   type RowItem =
     | { kind: 'milestone-group'; bucket: Bucket; tasks: Task[] }
-    | { kind: 'milestone'; task: Task; bucketColor: string }
+    | { kind: 'milestone'; task: Task; bucket: Bucket }
     | { kind: 'add-milestone'; bucketId: string }
     | { kind: 'add-milestone-group' }
     | { kind: 'group'; bucket: Bucket; tasks: Task[] }
@@ -249,10 +266,10 @@ export default function GanttView() {
 
     // ── 里程碑分组（多个）──
     for (const bucket of milestoneBuckets) {
-      const bTasks = milestoneTasks.filter((t) => t.bucketId === bucket.id)
+      const bTasks = sortTasksInBucket(milestoneTasks.filter((t) => t.bucketId === bucket.id))
       items.push({ kind: 'milestone-group', bucket, tasks: bTasks })
       if (!collapsedBuckets.has(bucket.id)) {
-        for (const task of bTasks) items.push({ kind: 'milestone', task, bucketColor: bucket.color || '#d83b01' })
+        for (const task of bTasks) items.push({ kind: 'milestone', task, bucket })
         if (addingMilestoneBucketId === bucket.id) items.push({ kind: 'add-milestone', bucketId: bucket.id })
       }
     }
@@ -262,7 +279,7 @@ export default function GanttView() {
 
     // ── 普通任务按 bucket 分组 ──
     for (const bucket of projectBuckets) {
-      const bt = regularTasks.filter((t) => t.bucketId === bucket.id)
+      const bt = sortTasksInBucket(regularTasks.filter((t) => t.bucketId === bucket.id))
       items.push({ kind: 'group', bucket, tasks: bt })
       if (!collapsedBuckets.has(bucket.id)) {
         for (const task of bt) items.push({ kind: 'task', task })
@@ -275,6 +292,28 @@ export default function GanttView() {
 
     return items
   }, [projectBuckets, regularTasks, milestoneTasks, milestoneBuckets, collapsedBuckets, addingMilestoneBucketId, addingMilestoneGroup, addingTaskBucketId, addingGroup])
+
+  // 每个分组的派生配色 / 字号，作为 CSS 变量下发到行上（避免各处硬编码颜色）
+  const groupVarsById = useMemo(() => {
+    const map = new Map<string, React.CSSProperties>()
+    for (const b of [...milestoneBuckets, ...projectBuckets]) {
+      const isMs = b.bucketType === 'milestone'
+      const color = resolveColor(b.color, isMs ? DEFAULT_MILESTONE_COLOR : '#64748b')
+      map.set(b.id, {
+        '--group-color': color,
+        '--group-ink': inkColor(color),
+        '--group-wash': tint(color, 0.03),
+        '--group-tint': tint(color, 0.07),
+        '--group-tint-strong': tint(color, 0.12),
+        '--group-line': tint(color, 0.22),
+        '--ms-font-size': `${b.labelFontSize ?? MILESTONE_FONT_DEFAULT}px`,
+        '--ms-font-weight': b.labelBold ? 700 : 500,
+      } as React.CSSProperties)
+    }
+    return map
+  }, [milestoneBuckets, projectBuckets])
+  const groupColorOf = (bucketId: string) =>
+    (groupVarsById.get(bucketId) as Record<string, string> | undefined)?.['--group-color']
 
   const toggleBucket = (bucketId: string) => {
     toggleBucketCollapse(bucketId)
@@ -296,7 +335,7 @@ export default function GanttView() {
 
   // 时间轴根据输入起止日期生成
   const { startDate, dateInfo, weekInfo, monthInfo } = useMemo(() => {
-    const parseLocalDate = (str: string) => {
+    const parseTimelineDate = (str: string) => {
       const parts = str.split('-').map(Number)
       if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
         return new Date(parts[0], parts[1] - 1, parts[2])
@@ -304,8 +343,8 @@ export default function GanttView() {
       const now = new Date()
       return new Date(now.getFullYear(), 0, 1)
     }
-    const startDate = parseLocalDate(timelineStart)
-    let endDate = parseLocalDate(timelineEnd)
+    const startDate = parseTimelineDate(timelineStart)
+    let endDate = parseTimelineDate(timelineEnd)
     // 确保结束日期不早于开始日期（最少显示 7 天）
     if (endDate <= startDate) {
       endDate = new Date(startDate)
@@ -399,6 +438,11 @@ export default function GanttView() {
     return { startDate, endDate, dateInfo, weekInfo, monthInfo }
   }, [timelineStart, timelineEnd])
 
+  const todayIndex = useMemo(() => {
+    const idx = getDaysBetween(startDate, new Date())
+    return idx >= 0 && idx < dateInfo.length && isToday(dateInfo[idx].date) ? idx : -1
+  }, [startDate, dateInfo])
+
   const ZOOM_LEVELS = [1, 2, 3, 4, 5, 7, 10, 14]
   const [zoomIndex, setZoomIndex] = useState(4) // 默认 5px/天
   const weekWidth = ZOOM_LEVELS[zoomIndex] // 每天的宽度（像素）
@@ -425,11 +469,69 @@ export default function GanttView() {
     saveTimeline(start, end)
   }
   // 悬浮工具栏拖拽
-  const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number }>(() => ({
-    x: window.innerWidth - 660,
-    y: 12,
-  }))
-  const toolbarDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
+  // 用户拖动过的位置（本浏览器记忆）；没有则挂载后放到时间轴区域左下角
+  const TOOLBAR_POS_KEY = 'gantt-toolbar-pos'
+  const savedToolbarPos = useRef<{ x: number; y: number } | null>((() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(TOOLBAR_POS_KEY) || 'null')
+      return v && typeof v.x === 'number' && typeof v.y === 'number' ? v : null
+    } catch { return null }
+  })())
+  const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number }>(() => savedToolbarPos.current ?? { x: -9999, y: -9999 })
+  const toolbarDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number; moved: boolean } | null>(null)
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  // 工具栏收起状态：仅本浏览器记忆，读写失败时退回展开
+  const [toolbarCollapsed, setToolbarCollapsedState] = useState<boolean>(() => {
+    try { return localStorage.getItem('gantt-toolbar-collapsed') === '1' } catch { return false }
+  })
+  // 收起/展开时保持底边不动（工具栏默认贴底，否则收起后的小胶囊会悬在半空）
+  const keepBottomRef = useRef<number | null>(null)
+  const setToolbarCollapsed = (v: boolean) => {
+    const el = toolbarRef.current
+    if (el) keepBottomRef.current = toolbarPos.y + el.offsetHeight
+    setToolbarCollapsedState(v)
+    try { localStorage.setItem('gantt-toolbar-collapsed', v ? '1' : '0') } catch { /* ignore */ }
+  }
+  useLayoutEffect(() => {
+    const el = toolbarRef.current
+    const bottom = keepBottomRef.current
+    if (!el || bottom === null) return
+    keepBottomRef.current = null
+    setToolbarPos((p) => clampToolbar({ x: p.x, y: bottom - el.offsetHeight }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在收起状态切换后执行一次
+  }, [toolbarCollapsed])
+  // 把工具栏限制在可视区域内（按实际宽高，而不是写死的估算宽度）
+  const clampToolbar = useCallback((p: { x: number; y: number }) => {
+    const el = toolbarRef.current
+    const w = el?.offsetWidth ?? 0
+    const h = el?.offsetHeight ?? 0
+    return {
+      x: Math.max(8, Math.min(p.x, window.innerWidth - w - 8)),
+      y: Math.max(0, Math.min(p.y, window.innerHeight - h - 8)),
+    }
+  }, [])
+  // 首次挂载：默认放在时间轴区域左下角（避开顶栏标签和周表头，图表底部通常为空白）；
+  // 窗口缩放或工具栏尺寸变化时自动收回视口内（layout effect：首帧前完成定位，无闪烁）
+  useLayoutEffect(() => {
+    const el = toolbarRef.current
+    if (!el) return
+    if (savedToolbarPos.current) {
+      setToolbarPos(clampToolbar(savedToolbarPos.current))
+    } else {
+      const area = ganttScrollRef.current?.getBoundingClientRect()
+      const left = (area?.left ?? 0) + taskListWidth + 16
+      const bottom = area?.bottom ?? window.innerHeight
+      setToolbarPos(clampToolbar({ x: left, y: bottom - el.offsetHeight - 16 }))
+    }
+    const onResize = () => setToolbarPos((p) => clampToolbar(p))
+    window.addEventListener('resize', onResize)
+    const ro = new ResizeObserver(onResize)
+    ro.observe(el)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      ro.disconnect()
+    }
+  }, [clampToolbar, taskListWidth])
 
   const handleToolbarMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     // 点击按钮/输入框/label 时不触发拖拽
@@ -440,6 +542,7 @@ export default function GanttView() {
       startY: e.clientY,
       origX: toolbarPos.x,
       origY: toolbarPos.y,
+      moved: false,
     }
   }
 
@@ -448,23 +551,32 @@ export default function GanttView() {
       if (!toolbarDragRef.current) return
       const dx = e.clientX - toolbarDragRef.current.startX
       const dy = e.clientY - toolbarDragRef.current.startY
-      setToolbarPos({
-        x: Math.max(0, toolbarDragRef.current.origX + dx),
-        y: Math.max(0, toolbarDragRef.current.origY + dy),
+      if (Math.abs(dx) + Math.abs(dy) > 2) toolbarDragRef.current.moved = true
+      const next = clampToolbar({
+        x: toolbarDragRef.current.origX + dx,
+        y: toolbarDragRef.current.origY + dy,
       })
+      savedToolbarPos.current = next
+      setToolbarPos(next)
     }
-    const onUp = () => { toolbarDragRef.current = null }
+    const onUp = () => {
+      const drag = toolbarDragRef.current
+      toolbarDragRef.current = null
+      if (drag?.moved && savedToolbarPos.current) {
+        try { localStorage.setItem(TOOLBAR_POS_KEY, JSON.stringify(savedToolbarPos.current)) } catch { /* ignore */ }
+      }
+    }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
     return () => {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
-  }, [])
+  }, [clampToolbar])
 
   const handleZoomFit = () => {
     // 根据容器宽度自动计算最佳缩放
-    const container = document.querySelector(`.${styles.ganttScroll}`)
+    const container = ganttScrollRef.current
     if (!container) return
     const availableWidth = container.clientWidth - TASK_LIST_WIDTH
     const idealPxPerDay = availableWidth / dateInfo.length
@@ -480,11 +592,6 @@ export default function GanttView() {
   const getDateLeft = useCallback((date: Date) => {
     return getDaysBetween(startDate, date) * weekWidth
   }, [startDate, weekWidth])
-
-  // 计算任务条位置（任务条在 timelineBody 内渲染，无需加 180）
-  const getTaskPosition = useCallback((task: typeof projectTasks[0]) => {
-    return { left: getDateLeft(new Date(task.startDateTime)) }
-  }, [getDateLeft])
 
   // 处理任务名称编辑
   const handleTaskNameClick = (e: React.MouseEvent, task: typeof projectTasks[0]) => {
@@ -541,6 +648,12 @@ export default function GanttView() {
 
   // 里程碑甘特内联编辑处理
   const handleGanttMilestoneClick = (e: React.MouseEvent, task: typeof projectTasks[0]) => {
+    // 刚完成拖拽平移时不进入编辑
+    if (justResizedRef.current) {
+      justResizedRef.current = false
+      e.stopPropagation()
+      return
+    }
     if (e.ctrlKey || e.metaKey) {
       // ctrl+click 仍走依赖逻辑
       handleTaskClick(e, task)
@@ -581,7 +694,7 @@ export default function GanttView() {
 
   const handleMilestoneDateSave = async () => {
     if (editingDateId && editingDateValue) {
-      const newDate = new Date(editingDateValue)
+      const newDate = parseLocalDate(editingDateValue)
       if (!isNaN(newDate.getTime())) {
         await updateTask(editingDateId, {
           startDateTime: newDate,
@@ -621,7 +734,7 @@ export default function GanttView() {
       setAddingMilestoneBucketId(null)
       return
     }
-    const date = new Date(newMilestoneDate)
+    const date = parseLocalDate(newMilestoneDate)
     if (isNaN(date.getTime())) {
       setAddingMilestoneBucketId(null)
       return
@@ -658,7 +771,7 @@ export default function GanttView() {
   const handleStartAddMilestoneGroup = () => {
     setAddingMilestoneGroup(true)
     setNewMilestoneGroupName('')
-    setNewMilestoneGroupColor('#d83b01')
+    setNewMilestoneGroupColor(nextPaletteColor(milestoneBuckets.length + 7))
   }
 
   const handleSaveMilestoneGroup = async () => {
@@ -712,7 +825,8 @@ export default function GanttView() {
   // ── 删除分组 ──
   const handleDeleteGroup = async (e: React.MouseEvent, bucketId: string) => {
     e.stopPropagation()
-    const tasksInBucket = regularTasks.filter((t) => t.bucketId === bucketId)
+    // 统计所有类型（含里程碑）——deleteBucket 会级联删除该分组下全部任务
+    const tasksInBucket = projectTasks.filter((t) => t.bucketId === bucketId)
     const msg = tasksInBucket.length > 0
       ? `This group contains ${tasksInBucket.length} task(s). Deleting the group will also delete all tasks. Continue?`
       : 'Are you sure you want to delete this group?'
@@ -735,7 +849,7 @@ export default function GanttView() {
     await addBucket({
       name: newGroupName.trim(),
       order: projectBuckets.length,
-      color: '#0078d4'
+      color: nextPaletteColor(projectBuckets.length)
     })
     setAddingGroup(false)
     setNewGroupName('')
@@ -790,8 +904,8 @@ export default function GanttView() {
       setAddingTaskBucketId(null)
       return
     }
-    const sDate = new Date(newTaskStartDate)
-    const eDate = new Date(newTaskEndDate)
+    const sDate = parseLocalDate(newTaskStartDate)
+    const eDate = parseLocalDate(newTaskEndDate)
     if (isNaN(sDate.getTime()) || isNaN(eDate.getTime())) {
       alert('Invalid date format')
       return
@@ -827,63 +941,204 @@ export default function GanttView() {
     }
   }
 
-  // ── 分组拖拽排序 ──
+  // ── 拖拽通用工具 ──
+  const rowHalf = (e: React.DragEvent): 'above' | 'below' => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    return e.clientY < rect.top + rect.height / 2 ? 'above' : 'below'
+  }
+
+  // 用左侧冻结单元格作为拖拽预览图（默认只有一个 ⠿ 字符，看不出拖的是什么）
+  const setDragImageFromCell = (e: React.DragEvent) => {
+    const cell = (e.currentTarget as HTMLElement).closest(`.${styles.frozenCell}`) as HTMLElement | null
+    if (cell) e.dataTransfer.setDragImage(cell, 16, ROW_HEIGHT / 2)
+  }
+
+  // ── 分组拖拽排序（仅同类型分组之间：任务组↔任务组、里程碑组↔里程碑组）──
   const handleGroupDragStart = (e: React.DragEvent, bucketId: string) => {
     e.stopPropagation()
     setDraggingGroupId(bucketId)
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', bucketId)
+    setDragImageFromCell(e)
   }
 
-  const handleGroupDragOver = (e: React.DragEvent, bucketId: string) => {
-    if (!draggingGroupId || draggingGroupId === bucketId) return
+  const isGroupDropCompatible = (targetBucket: Bucket) =>
+    !!draggingGroupId &&
+    draggingGroupId !== targetBucket.id &&
+    milestoneBucketIds.has(draggingGroupId) === (targetBucket.bucketType === 'milestone')
+
+  const handleGroupDragOver = (e: React.DragEvent, row: RowItem) => {
+    if (draggingTask) { handleTaskDragOver(e, row); return }
+    if (row.kind !== 'group' && row.kind !== 'milestone-group') return
+    if (!isGroupDropCompatible(row.bucket)) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
-    // 判断鼠标在目标行的上半/下半
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const midY = rect.top + rect.height / 2
-    setDragOverPosition(e.clientY < midY ? 'above' : 'below')
-    setDragOverGroupId(bucketId)
+    setDragOverPosition(rowHalf(e))
+    setDragOverGroupId(row.bucket.id)
   }
 
-  const handleGroupDragLeave = () => {
+  const handleGroupDragLeave = (e: React.DragEvent) => {
+    // 在行内子元素之间移动也会触发 dragleave，只有真正离开整行才清除，避免指示线闪烁
+    if ((e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)) return
     setDragOverGroupId(null)
   }
 
-  const handleGroupDrop = async (e: React.DragEvent, targetBucketId: string) => {
+  const resetGroupDrag = () => {
+    setDraggingGroupId(null)
+    setDragOverGroupId(null)
+  }
+
+  const handleGroupDrop = async (e: React.DragEvent, row: RowItem) => {
+    if (draggingTask) { await handleTaskDrop(e, row); return }
     e.preventDefault()
-    if (!draggingGroupId || draggingGroupId === targetBucketId) {
-      setDraggingGroupId(null)
-      setDragOverGroupId(null)
-      return
+    if (row.kind !== 'group' && row.kind !== 'milestone-group') return resetGroupDrag()
+    if (!draggingGroupId || !isGroupDropCompatible(row.bucket)) return resetGroupDrag()
+    const list = row.kind === 'milestone-group' ? milestoneBuckets : projectBuckets
+    const reorder = planBucketReorder(list, draggingGroupId, row.bucket.id, rowHalf(e))
+    resetGroupDrag()
+    await bulkUpdateBuckets(reorder.map((u) => ({ id: u.id, changes: { order: u.order } })))
+  }
+
+  const handleGroupDragEnd = resetGroupDrag
+
+  // ── 任务上下拖拽：组内排序 / 跨分组归拢 ──
+  // 每个分组当前的显示顺序（rowItems 已按 order 排序）
+  const orderedIdsByBucket = useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const r of rowItems) {
+      if (r.kind === 'group' || r.kind === 'milestone-group') map.set(r.bucket.id, r.tasks.map((t) => t.id))
     }
-    // 计算新顺序
-    const ordered = [...projectBuckets]
-    const dragIdx = ordered.findIndex((b) => b.id === draggingGroupId)
-    const dropIdx = ordered.findIndex((b) => b.id === targetBucketId)
-    if (dragIdx === -1 || dropIdx === -1) return
-    // 取出拖拽项
-    const [dragged] = ordered.splice(dragIdx, 1)
-    // 插入到目标位置
-    const insertIdx = dragOverPosition === 'above' ? ordered.findIndex((b) => b.id === targetBucketId) : ordered.findIndex((b) => b.id === targetBucketId) + 1
-    ordered.splice(insertIdx, 0, dragged)
-    // 按新序号更新所有 bucket 的 order
-    for (let i = 0; i < ordered.length; i++) {
-      if (ordered[i].order !== i) {
-        await updateBucket(ordered[i].id, { order: i })
+    return map
+  }, [rowItems])
+
+  const resolveTaskDrop = (
+    e: React.DragEvent,
+    row: RowItem
+  ): { target: TaskDropTarget; hint: { rowKey: string; position: 'above' | 'below' | 'inside' } | null } | null => {
+    if (!draggingTask) return null
+    // 任务只能放进普通分组，里程碑只能放进里程碑分组
+    if (row.kind === 'task' || row.kind === 'milestone') {
+      if ((row.kind === 'milestone') !== draggingTask.isMilestone) return null
+      if (row.task.id === draggingTask.id) {
+        return { target: { bucketId: row.task.bucketId, beforeTaskId: draggingTask.id }, hint: null }
+      }
+      const position = rowHalf(e)
+      const ids = orderedIdsByBucket.get(row.task.bucketId) || []
+      return {
+        target: dropTargetFromTaskRow(ids, row.task.bucketId, row.task.id, position, draggingTask.id),
+        hint: { rowKey: `task:${row.task.id}`, position },
       }
     }
-    setDraggingGroupId(null)
-    setDragOverGroupId(null)
+    if (row.kind === 'group' || row.kind === 'milestone-group') {
+      if ((row.kind === 'milestone-group') !== draggingTask.isMilestone) return null
+      // 折叠的分组 → 追加到末尾；展开的分组 → 放到第一个
+      const ids = (orderedIdsByBucket.get(row.bucket.id) || []).filter((id) => id !== draggingTask.id)
+      const beforeTaskId = collapsedBuckets.has(row.bucket.id) ? null : ids[0] ?? null
+      return {
+        target: { bucketId: row.bucket.id, beforeTaskId },
+        hint: { rowKey: `group:${row.bucket.id}`, position: 'inside' },
+      }
+    }
+    return null
   }
 
-  const handleGroupDragEnd = () => {
-    setDraggingGroupId(null)
-    setDragOverGroupId(null)
+  const handleTaskDragStart = (e: React.DragEvent, task: Task) => {
+    e.stopPropagation()
+    setEditingTaskId(null)
+    setDraggingTask({ id: task.id, isMilestone: task.taskType === 'milestone' })
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', task.id)
+    setDragImageFromCell(e)
   }
 
-  // ── 任务条拖拽调整时长 ──
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent, task: Task, handle: 'left' | 'right') => {
+  const handleTaskDragOver = (e: React.DragEvent, row: RowItem) => {
+    const r = resolveTaskDrop(e, row)
+    if (!r) {
+      if (taskDropHint) setTaskDropHint(null)
+      return
+    }
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    const next = r.hint
+    setTaskDropHint((prev) =>
+      prev === next || (prev && next && prev.rowKey === next.rowKey && prev.position === next.position) ? prev : next
+    )
+  }
+
+  const resetTaskDrag = () => {
+    setDraggingTask(null)
+    setTaskDropHint(null)
+  }
+
+  const handleTaskDrop = async (e: React.DragEvent, row: RowItem) => {
+    e.preventDefault()
+    const r = resolveTaskDrop(e, row)
+    const dragged = draggingTask
+    resetTaskDrag()
+    if (!r || !dragged) return
+    const updates = planTaskMove(projectTasks, currentProjectBuckets, dragged.id, r.target)
+    if (updates.length === 0) return
+    // 放入折叠分组时自动展开，让用户看到结果
+    useAppStore.getState().setBucketCollapsed(r.target.bucketId, false)
+    await bulkUpdateTasks(updates)
+  }
+
+  // ── 拖拽时靠近滚动容器上下边缘自动滚动 ──
+  const dragPointerYRef = useRef<number | null>(null)
+  const isRowDragging = !!draggingTask || !!draggingGroupId
+  useEffect(() => {
+    if (!isRowDragging) return
+    let raf = 0
+    const tick = () => {
+      const el = ganttScrollRef.current
+      const y = dragPointerYRef.current
+      if (el && y !== null) {
+        const rect = el.getBoundingClientRect()
+        const top = rect.top + HEADER_HEIGHT
+        let dy = 0
+        if (y < top + AUTO_SCROLL_EDGE) dy = -Math.min(1, (top + AUTO_SCROLL_EDGE - y) / AUTO_SCROLL_EDGE)
+        else if (y > rect.bottom - AUTO_SCROLL_EDGE) dy = Math.min(1, (y - (rect.bottom - AUTO_SCROLL_EDGE)) / AUTO_SCROLL_EDGE)
+        if (dy !== 0) el.scrollTop += dy * AUTO_SCROLL_MAX_SPEED
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(raf)
+      dragPointerYRef.current = null
+    }
+  }, [isRowDragging])
+
+  const handleScrollDragOver = (e: React.DragEvent) => {
+    if (isRowDragging) dragPointerYRef.current = e.clientY
+  }
+
+  const rowDragClass = (taskId: string) => {
+    if (draggingTask?.id === taskId) return styles.rowDragging
+    if (taskDropHint?.rowKey !== `task:${taskId}`) return ''
+    return taskDropHint.position === 'above' ? styles.dropAbove : styles.dropBelow
+  }
+
+  const renderTaskDragHandle = (task: Task) => (
+    <span
+      className={`${styles.dragHandle} ${styles.taskDragHandle}`}
+      draggable
+      onDragStart={(e) => handleTaskDragStart(e, task)}
+      onDragEnd={resetTaskDrag}
+      onClick={(e) => e.stopPropagation()}
+      title={task.taskType === 'milestone' ? 'Drag to reorder / move to another milestone group' : 'Drag to reorder / move to another group'}
+    >
+      ⠿
+    </span>
+  )
+
+  // ── 任务条拖拽：两端手柄调整起止，条身/里程碑整体平移 ──
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent, task: Task, handle: BarDragMode) => {
+    if (e.button !== 0) return
+    // Ctrl/Cmd + 点击用于建立依赖，不启动拖拽
+    if (handle === 'move' && (e.ctrlKey || e.metaKey)) return
+    // 内联编辑输入框内的鼠标操作不触发拖拽
+    if ((e.target as HTMLElement).closest('input')) return
     e.stopPropagation()
     e.preventDefault()
     resizingRef.current = {
@@ -892,10 +1147,14 @@ export default function GanttView() {
       startX: e.clientX,
       origStart: new Date(task.startDateTime),
       origEnd: new Date(task.dueDateTime),
+      isMilestone: task.taskType === 'milestone',
     }
-    const preview = { taskId: task.id, start: new Date(task.startDateTime), end: new Date(task.dueDateTime) }
-    resizePreviewRef.current = preview
-    setResizePreview(preview)
+    // move 模式等真正移动一天后才进入预览，保证单击仍能正常选中任务
+    if (handle !== 'move') {
+      const preview: BarPreview = { taskId: task.id, start: new Date(task.startDateTime), end: new Date(task.dueDateTime), mode: handle }
+      resizePreviewRef.current = preview
+      setResizePreview(preview)
+    }
   }, [])
 
   useEffect(() => {
@@ -904,9 +1163,15 @@ export default function GanttView() {
       const { taskId, handle, startX, origStart, origEnd } = resizingRef.current
       const deltaX = e.clientX - startX
       const deltaDays = Math.round(deltaX / weekWidth)
+      if (handle === 'move' && deltaDays === 0 && !resizePreviewRef.current) return
       let newStart = origStart
       let newEnd = origEnd
-      if (handle === 'right') {
+      if (handle === 'move') {
+        newStart = new Date(origStart)
+        newStart.setDate(newStart.getDate() + deltaDays)
+        newEnd = new Date(origEnd)
+        newEnd.setDate(newEnd.getDate() + deltaDays)
+      } else if (handle === 'right') {
         newEnd = new Date(origEnd)
         newEnd.setDate(newEnd.getDate() + deltaDays)
         const minEnd = new Date(origStart)
@@ -919,19 +1184,27 @@ export default function GanttView() {
         maxStart.setDate(maxStart.getDate() - 1)
         if (newStart > maxStart) newStart = maxStart
       }
-      const preview = { taskId, start: newStart, end: newEnd }
+      const prev = resizePreviewRef.current
+      if (prev && prev.start.getTime() === newStart.getTime() && prev.end.getTime() === newEnd.getTime()) return
+      const preview: BarPreview = { taskId, start: newStart, end: newEnd, mode: handle }
       resizePreviewRef.current = preview
-      setResizePreview({ ...preview })
+      setResizePreview(preview)
     }
 
     const handleMouseUp = async () => {
-      if (!resizingRef.current) return
+      const drag = resizingRef.current
+      if (!drag) return
       const preview = resizePreviewRef.current
       resizingRef.current = null
       resizePreviewRef.current = null
       setResizePreview(null)
-      if (preview) {
-        justResizedRef.current = true
+      const changed = !!preview &&
+        (preview.start.getTime() !== drag.origStart.getTime() || preview.end.getTime() !== drag.origEnd.getTime())
+      // 手柄操作或发生了实际移动时，吞掉随后的 click，避免误触发选中/编辑
+      justResizedRef.current = changed || drag.handle !== 'move'
+      // 若 mouseup 落在条外则不会产生 click，下一帧自动复位，避免吞掉之后的正常点击
+      setTimeout(() => { justResizedRef.current = false }, 0)
+      if (changed && preview) {
         await updateTask(preview.taskId, { startDateTime: preview.start, dueDateTime: preview.end })
       }
     }
@@ -973,7 +1246,13 @@ export default function GanttView() {
   // 计算依赖连线坐标 + 约束违反检测
   // SVG 从 (top: HEADER_HEIGHT, left: 0) 开始, Y 无需加偏移
   const TASK_LIST_WIDTH = taskListWidth
-  const HEADER_HEIGHT = 44 // 月(24) + 周(20)
+  // 拖拽预览期间，依赖连线跟随预览位置实时更新
+  const displayTasks = useMemo(() => {
+    if (!resizePreview) return projectTasks
+    return projectTasks.map((t) =>
+      t.id === resizePreview.taskId ? { ...t, startDateTime: resizePreview.start, dueDateTime: resizePreview.end } : t
+    )
+  }, [projectTasks, resizePreview])
   const dependencyLines = useMemo(() => {
     const lines: {
       fromX: number; fromY: number; toX: number; toY: number
@@ -985,10 +1264,10 @@ export default function GanttView() {
       taskId: string        // 当前任务 ID
       depTaskId: string     // 前序任务 ID
     }[] = []
-    projectTasks.forEach((task) => {
+    displayTasks.forEach((task) => {
       if (!task.dependencyTaskIds?.length) return
       task.dependencyTaskIds.forEach((depId) => {
-        const depTask = projectTasks.find((t) => t.id === depId)
+        const depTask = displayTasks.find((t) => t.id === depId)
         if (!depTask) return
         const fromRowIndex = getTaskRowIndex(depTask.id)
         const toRowIndex   = getTaskRowIndex(task.id)
@@ -1001,8 +1280,8 @@ export default function GanttView() {
         const fromX = depEnd + TASK_LIST_WIDTH
         const toX   = getDateLeft(new Date(task.startDateTime)) + TASK_LIST_WIDTH
         // Y: SVG top = HEADER_HEIGHT, 所以 Y 不需要再加 HEADER_HEIGHT
-        const fromY = fromRowIndex * 36 + 18
-        const toY   = toRowIndex   * 36 + 18
+        const fromY = fromRowIndex * ROW_HEIGHT + ROW_HEIGHT / 2
+        const toY   = toRowIndex   * ROW_HEIGHT + ROW_HEIGHT / 2
 
         // 查找 lag 约束
         const dep = (task.dependencies || []).find((d) => (typeof d === 'string' ? d === depId : d.taskId === depId))
@@ -1020,11 +1299,16 @@ export default function GanttView() {
       })
     })
     return lines
-  }, [projectTasks, getDateLeft, weekWidth, getTaskRowIndex])
+  }, [displayTasks, getDateLeft, weekWidth, getTaskRowIndex, TASK_LIST_WIDTH])
 
   // 获取当前项目名称用于导出文件名
   const projectName = currentProject?.name || 'Gantt Chart'
-  const sanitizedProjectName = projectName.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')
+  // \u6587\u4ef6\u540d\uff1a\u53bb\u6389 emoji \u548c\u6587\u4ef6\u7cfb\u7edf\u4e0d\u5141\u8bb8\u7684\u5b57\u7b26\uff0c\u4fdd\u7559\u4e2d\u6587/\u62ec\u53f7/\u8fde\u5b57\u7b26\uff0c\u7a7a\u767d\u6298\u53e0\u4e3a\u4e0b\u5212\u7ebf
+  const sanitizedProjectName = projectName
+    .replace(/\p{Extended_Pictographic}|\ufe0f/gu, '')
+    .replace(/[\\/:*?"<>|]/g, '')
+    .trim()
+    .replace(/\s+/g, '_') || 'gantt'
 
   // 导出处理函数（懒加载 exportGantt，避免 jspdf/html2canvas 打入主包）
   const handleExportAsPNG = async () => {
@@ -1039,6 +1323,32 @@ export default function GanttView() {
     await exportAsImage(ganttScrollRef.current, `${sanitizedProjectName}_gantt`, 'jpeg', TASK_LIST_WIDTH)
   }
 
+  // Excel 导出（懒加载 exceljs）：导出当前时间轴范围内的全部分组与任务（不受界面折叠影响）
+  const [exportingExcel, setExportingExcel] = useState(false)
+  const handleExportAsExcel = async () => {
+    if (exportingExcel) return
+    setExportingExcel(true)
+    try {
+      const { exportGanttToExcel } = await import('@/utils/exportExcel')
+      await exportGanttToExcel(
+        {
+          projectName,
+          tasks: projectTasks,
+          buckets: [...milestoneBuckets, ...projectBuckets],
+          markers: verticalMarkers,
+          timelineStart: startDate,
+          timelineEnd: dateInfo[dateInfo.length - 1].date,
+        },
+        `${sanitizedProjectName}_gantt`
+      )
+    } catch (err) {
+      console.error('Excel export failed', err)
+      alert('Excel export failed: ' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setExportingExcel(false)
+    }
+  }
+
   const handleExportAsPDF = async () => {
     if (!ganttScrollRef.current) return
     const { exportAsPDF } = await import('@/utils/exportGantt')
@@ -1047,9 +1357,9 @@ export default function GanttView() {
 
   return (
     <>
-      <div className={`${styles.ganttView} ${resizePreview ? styles.ganttResizing : ''}`} ref={ganttRef} style={{ '--task-list-width': `${TASK_LIST_WIDTH}px` } as React.CSSProperties}>
+      <div className={`${styles.ganttView} ${resizePreview ? (resizePreview.mode === 'move' ? styles.ganttMoving : styles.ganttResizing) : ''} ${isRowDragging ? styles.ganttRowDragging : ''}`} ref={ganttRef} style={{ '--task-list-width': `${TASK_LIST_WIDTH}px` } as React.CSSProperties}>
       {/* ── 单一滚动容器：同时承载左侧冻结列和右侧时间轴 ── */}
-      <div className={styles.ganttScroll} ref={ganttScrollRef}>
+      <div className={styles.ganttScroll} ref={ganttScrollRef} onDragOver={handleScrollDragOver}>
         <div className={styles.ganttInner} style={{ width: `${TASK_LIST_WIDTH + totalWidth}px` }}>
 
           {/* ── 吸顶表头行 ── */}
@@ -1069,18 +1379,18 @@ export default function GanttView() {
                     className={styles.monthCell}
                     style={{ width: `${month.dayCount * weekWidth}px` }}
                   >
-                    {month.name}
+                    {month.dayCount * weekWidth >= 60 ? month.name : month.dayCount * weekWidth >= 26 ? month.name.slice(0, 3) : null}
                   </div>
                 ))}
               </div>
               <div className={styles.timelineHeaderWeek}>
                 {weekInfo.map((week) => (
                   <div
-                    key={week.weekNum}
+                    key={`wk-${week.startIndex}`}
                     className={styles.weekCell}
                     style={{ width: `${week.dayCount * weekWidth}px` }}
                   >
-                    W{week.weekNum}
+                    {week.dayCount * weekWidth >= 22 ? `W${week.weekNum}` : null}
                   </div>
                 ))}
               </div>
@@ -1093,26 +1403,23 @@ export default function GanttView() {
             style={{
               left: `${TASK_LIST_WIDTH}px`,
               width: `${totalWidth}px`,
-              height: `${rowItems.length * 36}px`
+              height: `${rowItems.length * ROW_HEIGHT}px`
             }}
           >
             {weekInfo.map((week) => (
               <div
-                key={week.weekNum}
+                key={`gw-${week.startIndex}`}
                 className={styles.gridWeek}
                 style={{ left: `${week.startIndex * weekWidth}px`, width: `${week.dayCount * weekWidth}px` }}
               />
             ))}
-            {dateInfo.map((info, index) =>
-              isToday(info.date) ? (
-                <div
-                  key="today"
-                  className={styles.todayLine}
-                  style={{ left: `${index * weekWidth + weekWidth / 2}px` }}
-                >
-                  <span className={styles.todayLabel}>Today</span>
-                </div>
-              ) : null
+            {todayIndex >= 0 && (
+              <div
+                className={styles.todayLine}
+                style={{ left: `${todayIndex * weekWidth + weekWidth / 2}px` }}
+              >
+                <span className={styles.todayLabel}>Today</span>
+              </div>
             )}
           </div>
 
@@ -1122,7 +1429,7 @@ export default function GanttView() {
             style={{
               left: `${TASK_LIST_WIDTH}px`,
               width: `${totalWidth}px`,
-              height: `${HEADER_HEIGHT + rowItems.length * 36}px`
+              height: `${HEADER_HEIGHT + rowItems.length * ROW_HEIGHT}px`
             }}
           >
             {/* ── 周背景网格竖线（贯穿全高）── */}
@@ -1160,16 +1467,17 @@ export default function GanttView() {
           {rowItems.map((row) => {
             /* ── 里程碑分组标题行 ── */
             if (row.kind === 'milestone-group') {
-              const bucketColor = row.bucket.color || '#d83b01'
+              const bucketColor = groupColorOf(row.bucket.id) || DEFAULT_MILESTONE_COLOR
               const isDragging = draggingGroupId === row.bucket.id
               const isDragOver = dragOverGroupId === row.bucket.id
               return (
                 <div
                   key={`ms-group-${row.bucket.id}`}
-                  className={`${styles.dataRow} ${styles.milestoneGroupRow} ${isDragging ? styles.groupDragging : ''} ${isDragOver ? (dragOverPosition === 'above' ? styles.groupDragOverAbove : styles.groupDragOverBelow) : ''}`}
-                  onDragOver={(e) => handleGroupDragOver(e, row.bucket.id)}
+                  style={groupVarsById.get(row.bucket.id)}
+                  className={`${styles.dataRow} ${styles.milestoneGroupRow} ${isDragging ? styles.rowDragging : ''} ${isDragOver ? (dragOverPosition === 'above' ? styles.dropAbove : styles.dropBelow) : ''} ${taskDropHint?.rowKey === `group:${row.bucket.id}` ? styles.dropInside : ''}`}
+                  onDragOver={(e) => handleGroupDragOver(e, row)}
                   onDragLeave={handleGroupDragLeave}
-                  onDrop={(e) => handleGroupDrop(e, row.bucket.id)}
+                  onDrop={(e) => handleGroupDrop(e, row)}
                 >
                   <div
                     className={`${styles.frozenCell} ${styles.frozenGroupCell} ${styles.frozenMilestoneGroupCell}`}
@@ -1181,11 +1489,11 @@ export default function GanttView() {
                       onDragStart={(e) => handleGroupDragStart(e, row.bucket.id)}
                       onDragEnd={handleGroupDragEnd}
                       onClick={(e) => e.stopPropagation()}
-                      title="Drag to reorder"
+                      title="Drag to reorder group"
                     >
                       ⠿
                     </span>
-                    <span className={styles.milestoneGroupIcon} style={{ color: bucketColor }}>◆</span>
+                    <span className={styles.milestoneGroupIcon}>◆</span>
                     {editingGroupId === row.bucket.id ? (
                       <input
                         type="text"
@@ -1208,13 +1516,12 @@ export default function GanttView() {
                     )}
                     <span className={styles.groupCount}>{row.tasks.length}</span>
                     {/* 颜色选择 */}
-                    <input
-                      type="color"
-                      className={styles.milestoneColorPicker}
-                      value={bucketColor}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => updateBucket(row.bucket.id, { color: e.target.value })}
-                      title="Change marker color"
+                    <GroupStyleButton
+                      value={{ color: bucketColor, labelFontSize: row.bucket.labelFontSize, labelBold: row.bucket.labelBold }}
+                      onChange={(next) => updateBucket(row.bucket.id, next)}
+                      showFontControls
+                      previewText={row.tasks[0]?.title}
+                      title="Color & label size"
                     />
                     <button
                       className={styles.addMilestoneBtn}
@@ -1234,7 +1541,7 @@ export default function GanttView() {
                   <div className={`${styles.timelineGroupCell} ${styles.timelineMilestoneGroupCell}`} style={{ width: `${totalWidth}px` }}>
                     <span
                       className={styles.timelineGroupLabel}
-                      style={{ borderLeftColor: bucketColor }}
+
                     >
                       {row.bucket.name}
                       {collapsedBuckets.has(row.bucket.id) && (
@@ -1254,7 +1561,7 @@ export default function GanttView() {
                         }}
                       >
                         <div className={styles.milestoneDiamond} style={{ backgroundColor: bucketColor }} />
-                        <span className={styles.collapsedMilestoneLabel} style={{ color: bucketColor }}>{ms.title}</span>
+                        <span className={styles.collapsedMilestoneLabel}>{ms.title}</span>
                       </div>
                     ))}
                   </div>
@@ -1264,15 +1571,22 @@ export default function GanttView() {
 
             /* ── 里程碑行 ── */
             if (row.kind === 'milestone') {
-              const msColor = row.bucketColor || '#d83b01'
+              const msColor = groupColorOf(row.bucket.id) || DEFAULT_MILESTONE_COLOR
+              const msPreviewing = resizePreview?.taskId === row.task.id
+              const msDate = msPreviewing ? resizePreview!.start : new Date(row.task.startDateTime)
+              const msLeft = getDateLeft(msDate)
               return (
                 <div
                   key={row.task.id}
-                  className={`${styles.dataRow} ${styles.milestoneRow} ${dragStartTask === row.task.id ? styles.isDragging : ''}`}
+                  className={`${styles.dataRow} ${styles.milestoneRow} ${dragStartTask === row.task.id ? styles.isDragging : ''} ${rowDragClass(row.task.id)}`}
+                  style={groupVarsById.get(row.bucket.id)}
+                  onDragOver={(e) => handleTaskDragOver(e, row)}
+                  onDrop={(e) => handleTaskDrop(e, row)}
                 >
                   <div className={`${styles.frozenCell} ${styles.frozenTaskCell} ${styles.frozenMilestoneCell}`}>
                     <div className={styles.taskName}>
-                      <span className={styles.milestoneIndicator} style={{ color: msColor }}>◆</span>
+                      {renderTaskDragHandle(row.task)}
+                      <span className={styles.milestoneIndicator}>◆</span>
                       {editingTaskId === row.task.id ? (
                         <input
                           type="text"
@@ -1287,7 +1601,6 @@ export default function GanttView() {
                       ) : (
                         <span
                           className={`${styles.taskNameText} ${styles.milestoneNameText}`}
-                          style={{ color: msColor }}
                           onClick={(e) => handleTaskNameClick(e, row.task)}
                         >
                           {row.task.title}
@@ -1324,11 +1637,12 @@ export default function GanttView() {
                   </div>
                   <div className={`${styles.timelineTaskCell} ${styles.timelineMilestoneCell}`} style={{ width: `${totalWidth}px` }}>
                     <div
-                      className={`${styles.milestone} ${dragStartTask === row.task.id ? styles.isDragging : ''}`}
-                      style={{ left: `${getTaskPosition(row.task).left}px` }}
+                      className={`${styles.milestone} ${dragStartTask === row.task.id ? styles.isDragging : ''} ${msPreviewing ? styles.milestoneMoving : ''}`}
+                      style={{ left: `${msLeft}px` }}
+                      onMouseDown={(e) => handleResizeMouseDown(e, row.task, 'move')}
                       onClick={(e) => handleGanttMilestoneClick(e, row.task)}
                       onDoubleClick={() => handleTaskDoubleClick()}
-                      title={ganttEditingId === row.task.id ? undefined : `${row.task.title} · ${new Date(row.task.startDateTime).toLocaleDateString('en-US')} · Click to edit`}
+                      title={ganttEditingId === row.task.id ? undefined : `${row.task.title} · ${msDate.toLocaleDateString('en-US')} · Click to edit, drag to move`}
                     >
                       <div className={`${styles.milestoneDiamond} ${styles.milestoneDiamondLg}`} style={{ backgroundColor: msColor }} />
                       {ganttEditingId === row.task.id ? (
@@ -1342,13 +1656,13 @@ export default function GanttView() {
                           autoFocus
                         />
                       ) : (
-                        <span className={styles.milestoneLabel} style={{ color: msColor }}>{row.task.title}</span>
+                        <span className={styles.milestoneLabel}>{row.task.title}</span>
                       )}
                     </div>
                     {/* 里程碑垂直参考线 */}
                     <div
                       className={styles.milestoneRefLine}
-                      style={{ left: `${getTaskPosition(row.task).left}px` }}
+                      style={{ left: `${msLeft}px` }}
                     />
                   </div>
                 </div>
@@ -1398,12 +1712,10 @@ export default function GanttView() {
                 <div key="add-milestone-group" className={`${styles.dataRow} ${styles.milestoneGroupRow}`}>
                   <div className={`${styles.frozenCell} ${styles.frozenGroupCell} ${styles.frozenMilestoneCell}`}>
                     <div className={styles.milestoneGroupInputRow}>
-                      <input
-                        type="color"
-                        className={styles.milestoneColorPicker}
-                        value={newMilestoneGroupColor}
-                        onChange={(e) => setNewMilestoneGroupColor(e.target.value)}
-                        title="Choose marker color"
+                      <GroupStyleButton
+                        value={{ color: newMilestoneGroupColor }}
+                        onChange={(next) => { if (next.color) setNewMilestoneGroupColor(next.color) }}
+                        title="Choose group color"
                       />
                       <input
                         type="text"
@@ -1419,7 +1731,7 @@ export default function GanttView() {
                   <div className={`${styles.timelineGroupCell} ${styles.timelineMilestoneGroupCell}`} style={{ width: `${totalWidth}px` }}>
                     <div className={styles.addMilestoneActions}>
                       <button className={styles.addMilestoneSave} onClick={handleSaveMilestoneGroup}>✓ Create Group</button>
-                      <button className={styles.addMilestoneCancel} onClick={() => { setAddingMilestoneGroup(false); setNewMilestoneGroupName(''); setNewMilestoneGroupColor('#d83b01') }}>✕ Cancel</button>
+                      <button className={styles.addMilestoneCancel} onClick={() => { setAddingMilestoneGroup(false); setNewMilestoneGroupName(''); setNewMilestoneGroupColor(DEFAULT_MILESTONE_COLOR) }}>✕ Cancel</button>
                     </div>
                   </div>
                 </div>
@@ -1433,10 +1745,11 @@ export default function GanttView() {
               return (
                 <div
                   key={`group-${row.bucket.id}`}
-                  className={`${styles.dataRow} ${isDragging ? styles.groupDragging : ''} ${isDragOver ? (dragOverPosition === 'above' ? styles.groupDragOverAbove : styles.groupDragOverBelow) : ''}`}
-                  onDragOver={(e) => handleGroupDragOver(e, row.bucket.id)}
+                  style={groupVarsById.get(row.bucket.id)}
+                  className={`${styles.dataRow} ${isDragging ? styles.rowDragging : ''} ${isDragOver ? (dragOverPosition === 'above' ? styles.dropAbove : styles.dropBelow) : ''} ${taskDropHint?.rowKey === `group:${row.bucket.id}` ? styles.dropInside : ''}`}
+                  onDragOver={(e) => handleGroupDragOver(e, row)}
                   onDragLeave={handleGroupDragLeave}
-                  onDrop={(e) => handleGroupDrop(e, row.bucket.id)}
+                  onDrop={(e) => handleGroupDrop(e, row)}
                 >
                   <div
                     className={`${styles.frozenCell} ${styles.frozenGroupCell}`}
@@ -1448,17 +1761,14 @@ export default function GanttView() {
                       onDragStart={(e) => handleGroupDragStart(e, row.bucket.id)}
                       onDragEnd={handleGroupDragEnd}
                       onClick={(e) => e.stopPropagation()}
-                      title="Drag to reorder"
+                      title="Drag to reorder group"
                     >
                       ⠿
                     </span>
-                    <input
-                      type="color"
-                      className={styles.milestoneColorPicker}
-                      value={row.bucket.color || '#a19f9d'}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => updateBucket(row.bucket.id, { color: e.target.value })}
-                      title="Change group color"
+                    <GroupStyleButton
+                      value={{ color: groupColorOf(row.bucket.id) || '#64748b' }}
+                      onChange={(next) => updateBucket(row.bucket.id, next)}
+                      title="Group color"
                     />
                     {editingGroupId === row.bucket.id ? (
                       <input
@@ -1500,7 +1810,7 @@ export default function GanttView() {
                   <div className={styles.timelineGroupCell} style={{ width: `${totalWidth}px` }}>
                     <span
                       className={styles.timelineGroupLabel}
-                      style={{ borderLeftColor: row.bucket.color || '#a19f9d' }}
+
                     >
                       {row.bucket.name}
                       {collapsedBuckets.has(row.bucket.id) && (
@@ -1563,7 +1873,7 @@ export default function GanttView() {
               return (
                 <div key="add-group" className={styles.dataRow}>
                   <div className={`${styles.frozenCell} ${styles.frozenGroupCell}`}>
-                    <span className={styles.groupColor} style={{ backgroundColor: '#0078d4' }} />
+                    <span className={styles.groupColor} style={{ backgroundColor: nextPaletteColor(projectBuckets.length) }} />
                     <input
                       type="text"
                       className={styles.groupNameInput}
@@ -1590,13 +1900,18 @@ export default function GanttView() {
               const barWidth = Math.max(getDaysBetween(dispStart, dispEnd) * weekWidth, weekWidth)
               const days  = getDaysBetween(dispStart, dispEnd)
               const weeks = days / 7
+              const barColor = resolveColor(row.task.color || groupColorOf(row.task.bucketId))
+              const barText = getContrastColor(barColor)
               return (
                 <div
                   key={row.task.id}
-                  className={`${styles.dataRow} ${styles.taskRow} ${dragStartTask === row.task.id ? styles.isDragging : ''}`}
+                  className={`${styles.dataRow} ${styles.taskRow} ${dragStartTask === row.task.id ? styles.isDragging : ''} ${rowDragClass(row.task.id)}`}
+                  onDragOver={(e) => handleTaskDragOver(e, row)}
+                  onDrop={(e) => handleTaskDrop(e, row)}
                 >
                   <div className={`${styles.frozenCell} ${styles.frozenTaskCell}`}>
                     <div className={styles.taskName}>
+                      {renderTaskDragHandle(row.task)}
                       <span
                         className={styles.priorityIndicator}
                         style={{ backgroundColor: PRIORITY_COLORS[row.task.priority] }}
@@ -1643,8 +1958,10 @@ export default function GanttView() {
                       style={{
                         left: `${barLeft}px`,
                         width: `${barWidth}px`,
-                        backgroundColor: row.task.color || '#0078d4'
-                      }}
+                        backgroundColor: barColor,
+                        '--bar-text': barText,
+                      } as React.CSSProperties}
+                      onMouseDown={(e) => handleResizeMouseDown(e, row.task, 'move')}
                       onClick={(e) => handleTaskClick(e, row.task)}
                       onDoubleClick={() => handleTaskDoubleClick()}
                       title={`${row.task.title}\n${dispStart.toLocaleDateString('en-US')} - ${dispEnd.toLocaleDateString('en-US')}`}
@@ -1652,10 +1969,7 @@ export default function GanttView() {
                       {(row.task.completedPercent || 0) > 0 && (
                         <div
                           className={styles.taskBarProgress}
-                          style={{
-                            width: `${row.task.completedPercent}%`,
-                            backgroundColor: STATUS_COLORS[row.task.status]
-                          }}
+                          style={{ width: `${row.task.completedPercent}%` }}
                         />
                       )}
                       {/* 左侧拖拽调整手柄 */}
@@ -1701,19 +2015,19 @@ export default function GanttView() {
             style={{
               top: `${HEADER_HEIGHT}px`,
               width: `${TASK_LIST_WIDTH + totalWidth}px`,
-              height: `${rowItems.length * 36}px`
+              height: `${rowItems.length * ROW_HEIGHT}px`
             }}
           >
             <defs>
               <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                <polygon points="0 0, 8 3, 0 6" fill="#0078d4" />
+                <polygon points="0 0, 8 3, 0 6" fill={GANTT_COLORS.dependency} />
               </marker>
               <marker id="arrowhead-red" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                <polygon points="0 0, 8 3, 0 6" fill="#e00" />
+                <polygon points="0 0, 8 3, 0 6" fill={GANTT_COLORS.dependencyViolated} />
               </marker>
             </defs>
             {dependencyLines.map((line, index) => {
-              const color = line.violated ? '#e00' : '#0078d4'
+              const color = line.violated ? GANTT_COLORS.dependencyViolated : GANTT_COLORS.dependency
               // ── 直角折线路径 ──
               // 从前序任务结束 → 水平右移一小段 → 垂直到目标行 → 水平到目标任务起点
               const gap = 8 // 折角间距
@@ -1764,7 +2078,7 @@ export default function GanttView() {
                         width={42}
                         height={16}
                         rx={3}
-                        fill="#0078d4"
+                        fill={GANTT_COLORS.lagBadge}
                         opacity={0.9}
                       />
                       <text
@@ -1792,7 +2106,7 @@ export default function GanttView() {
                             width={42}
                             height={14}
                             rx={3}
-                            fill="#0078d4"
+                            fill={GANTT_COLORS.lagBadge}
                             opacity={0.7}
                           />
                           <text
@@ -1814,7 +2128,7 @@ export default function GanttView() {
                         width={48}
                         height={14}
                         rx={3}
-                        fill="#e00"
+                        fill={GANTT_COLORS.dependencyViolated}
                       />
                       <text
                         x={labelX + 22}
@@ -1836,106 +2150,126 @@ export default function GanttView() {
         </div>
       </div>
 
-      {/* 缩放控制栏（可拖拽悬浮） */}
+      {/* 悬浮工具栏：2×2 分区（时间轴 / 缩放 / 行 / 导出），可拖拽、可收起 */}
       <div
-        className={styles.zoomToolbar}
+        ref={toolbarRef}
+        className={`${styles.zoomToolbar} ${toolbarCollapsed ? styles.toolbarCollapsed : ''}`}
         style={{ left: toolbarPos.x, top: toolbarPos.y }}
+        data-open-up={toolbarPos.y > window.innerHeight / 2 ? 'true' : undefined}
         onMouseDown={handleToolbarMouseDown}
       >
-        {/* 拖拽手柄 */}
-        <div className={styles.toolbarDragHandle} title="拖拽移动工具栏">
+        {/* 拖拽手柄（纵向贯穿两行） */}
+        <div className={styles.toolbarDragHandle} title="Drag to move toolbar">
           <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor">
             <circle cx="2" cy="2" r="1.2"/><circle cx="8" cy="2" r="1.2"/>
             <circle cx="2" cy="7" r="1.2"/><circle cx="8" cy="7" r="1.2"/>
             <circle cx="2" cy="12" r="1.2"/><circle cx="8" cy="12" r="1.2"/>
           </svg>
         </div>
-        <div className={styles.zoomSeparator}></div>
-        {/* 时间轴范围选择 */}
-        <label className={styles.dateRangeLabel}>Start</label>
-        <input
-          type="date"
-          className={styles.dateRangeInput}
-          value={timelineStart}
-          onChange={(e) => { setTimelineStart(e.target.value); saveTimeline(e.target.value, timelineEnd) }}
-          title="Timeline start date"
-        />
-        <label className={styles.dateRangeLabel}>End</label>
-        <input
-          type="date"
-          className={styles.dateRangeInput}
-          value={timelineEnd}
-          onChange={(e) => { setTimelineEnd(e.target.value); saveTimeline(timelineStart, e.target.value) }}
-          title="Timeline end date"
-        />
-        <button className={styles.autoFitBtn} onClick={handleAutoFitTimeline} title="Auto-fit timeline from tasks">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 21l-4.35-4.35"/><circle cx="11" cy="11" r="8"/><path d="M11 8v6M8 11h6"/></svg>
-          Auto Fit
-        </button>
-        <div className={styles.zoomSeparator}></div>
-        <button className={styles.zoomBtn} onClick={handleCollapseAll} title="Collapse all">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M20 6l-3 3-3-3" fill="currentColor" stroke="none"/></svg>
-        </button>
-        <button className={styles.zoomBtn} onClick={handleExpandAll} title="Expand all">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M20 6l-3-3-3 3" fill="currentColor" stroke="none"/></svg>
-        </button>
-        <div className={styles.zoomSeparator}></div>
-        <button className={styles.zoomBtn} onClick={handleZoomOut} disabled={zoomIndex === 0} title="Zoom out">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        </button>
-        <button className={styles.zoomFitBtn} onClick={handleZoomFit} title="Fit to screen">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="3" y="3" width="18" height="18" rx="2"/>
-            <polyline points="15 3 15 9 21 9"/>
-            <polyline points="9 21 9 15 3 15"/>
-          </svg>
-        </button>
-        <button className={styles.zoomBtn} onClick={handleZoomIn} disabled={zoomIndex === ZOOM_LEVELS.length - 1} title="Zoom in">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        </button>
-        <span className={styles.zoomLevel}>{weekWidth}px/d</span>
-        <div className={styles.zoomSeparator}></div>
-        {/* 导出按钮 */}
-        <button className={styles.exportBtn} onClick={handleExportAsPNG} title="Export as PNG">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <polyline points="21 15 16 10 5 21"/>
-          </svg>
-        </button>
-        <button className={styles.exportBtn} onClick={handleExportAsJPEG} title="Export as JPEG">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <path d="M21 15l-5-5-5 5"/>
-            <path d="M11 10v9"/>
-          </svg>
-        </button>
-        <button className={styles.exportBtn} onClick={handleExportAsPDF} title="Export as PDF">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <path d="M12 18v-6"/>
-            <path d="M9 15l3 3 3-3"/>
-          </svg>
-        </button>
-        <div className={styles.zoomSeparator}></div>
-        {/* Vertical marker lines */}
-        <div className={styles.markerSection}>
-          <button
-            className={`${styles.exportBtn} ${verticalMarkers.length > 0 ? styles.markerActive : ''}`}
-            onClick={() => setAddingMarker(!addingMarker)}
-            title="Add vertical marker line"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="12" y1="2" x2="12" y2="22"/>
-              <path d="M8 6l4-4 4 4"/>
-              <line x1="5" y1="22" x2="19" y2="22"/>
-            </svg>
+
+        {toolbarCollapsed ? (
+          <button className={styles.toolbarExpandBtn} onClick={() => setToolbarCollapsed(false)} title="Show toolbar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
+            Tools
           </button>
-          {verticalMarkers.length > 0 && (
-            <span className={styles.markerBadge}>{verticalMarkers.length}</span>
-          )}
+        ) : (
+        <div className={styles.toolbarGrid}>
+          {/* ── 时间轴范围 ── */}
+          <div className={styles.toolbarSection}>
+            <span className={styles.toolbarSectionLabel}>Timeline</span>
+            <input
+              type="date"
+              className={styles.dateRangeInput}
+              value={timelineStart}
+              onChange={(e) => { setTimelineStart(e.target.value); saveTimeline(e.target.value, timelineEnd) }}
+              title="Timeline start date"
+            />
+            <span className={styles.dateRangeArrow}>→</span>
+            <input
+              type="date"
+              className={styles.dateRangeInput}
+              value={timelineEnd}
+              onChange={(e) => { setTimelineEnd(e.target.value); saveTimeline(timelineStart, e.target.value) }}
+              title="Timeline end date"
+            />
+            <button className={styles.toolBtn} onClick={handleAutoFitTimeline} title="Fit timeline range to all tasks">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+              Auto fit
+            </button>
+          </div>
+
+          {/* ── 缩放 ── */}
+          <div className={styles.toolbarSection}>
+            <span className={styles.toolbarSectionLabel}>Zoom</span>
+            <div className={styles.segmented}>
+              <button className={styles.segBtn} onClick={handleZoomOut} disabled={zoomIndex === 0} title="Zoom out">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+              <span className={styles.zoomLevel} title="Pixels per day">{weekWidth} px/d</span>
+              <button className={styles.segBtn} onClick={handleZoomIn} disabled={zoomIndex === ZOOM_LEVELS.length - 1} title="Zoom in">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </button>
+            </div>
+            <button className={styles.toolBtn} onClick={handleZoomFit} title="Fit whole timeline to screen width">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+              Fit
+            </button>
+            <button
+              className={styles.toolbarMinBtn}
+              onClick={() => setToolbarCollapsed(true)}
+              title="Minimize toolbar"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+
+          {/* ── 行（分组折叠） ── */}
+          <div className={styles.toolbarSection}>
+            <span className={styles.toolbarSectionLabel}>Rows</span>
+            <button className={styles.toolBtn} onClick={handleCollapseAll} title="Collapse all groups">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 20l5-5 5 5M7 4l5 5 5-5"/></svg>
+              Collapse all
+            </button>
+            <button className={styles.toolBtn} onClick={handleExpandAll} title="Expand all groups">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg>
+              Expand all
+            </button>
+          </div>
+
+          {/* ── 导出 + 标记线 ── */}
+          <div className={styles.toolbarSection}>
+            <span className={styles.toolbarSectionLabel}>Export</span>
+            <div className={styles.segmented}>
+              <button className={styles.segBtn} onClick={handleExportAsPNG} title="Export chart as PNG image">PNG</button>
+              <button className={styles.segBtn} onClick={handleExportAsJPEG} title="Export chart as JPEG image">JPG</button>
+              <button className={styles.segBtn} onClick={handleExportAsPDF} title="Export chart as PDF">PDF</button>
+            </div>
+            <button
+              className={`${styles.toolBtn} ${styles.exportExcelBtn}`}
+              onClick={handleExportAsExcel}
+              disabled={exportingExcel}
+              title="Export to Excel (.xlsx)"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <path d="M3 9h18M9 9v12"/>
+              </svg>
+              {exportingExcel ? 'Exporting…' : 'Excel'}
+            </button>
+            <span className={styles.toolbarDivider} />
+            <div className={styles.markerSection}>
+              <button
+                className={`${styles.toolBtn} ${verticalMarkers.length > 0 ? styles.markerActive : ''}`}
+                onClick={() => setAddingMarker(!addingMarker)}
+                title="Vertical marker lines (SOP, deadlines…)"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="12" y1="3" x2="12" y2="21"/>
+                  <path d="M12 4h7l-2 3 2 3h-7"/>
+                </svg>
+                Markers
+                {verticalMarkers.length > 0 && <span className={styles.markerCount}>{verticalMarkers.length}</span>}
+              </button>
           {addingMarker && (
             <div className={styles.markerPopover}>
               <div className={styles.markerPopoverTitle}>Add Marker Line</div>
@@ -2016,7 +2350,10 @@ export default function GanttView() {
               )}
             </div>
           )}
+            </div>
+          </div>
         </div>
+        )}
       </div>
 
       {/* 操作面板 */}
@@ -2042,6 +2379,12 @@ export default function GanttView() {
             </button>
             <div className={styles.hint}>
               <span className={styles.hintKey}>Click</span> Edit task
+            </div>
+            <div className={styles.hint}>
+              <span className={styles.hintKey}>Drag ⠿</span> Reorder / move task to another group
+            </div>
+            <div className={styles.hint}>
+              <span className={styles.hintKey}>Drag bar</span> Shift dates (edges: resize)
             </div>
             <div className={styles.hint}>
               <span className={styles.hintKey}>Ctrl + Click</span> Create dependency (with lag)

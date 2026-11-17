@@ -87,6 +87,16 @@ export class GanttDatabase extends Dexie {
     })
   }
 
+  /** 批量更新任务（单事务），用于拖拽重排等一次涉及多条记录的操作 */
+  async bulkUpdateTasks(updates: { id: string; changes: Partial<Task> }[]): Promise<void> {
+    const now = new Date()
+    await this.transaction('rw', this.tasks, async () => {
+      for (const u of updates) {
+        await this.tasks.update(u.id, { ...u.changes, updatedAt: now })
+      }
+    })
+  }
+
   async deleteTask(taskId: string): Promise<void> {
     await this.tasks.delete(taskId)
   }
@@ -148,6 +158,14 @@ export class GanttDatabase extends Dexie {
 
   async updateBucket(bucketId: string, updates: Partial<Bucket>): Promise<number> {
     return await this.buckets.update(bucketId, updates)
+  }
+
+  async bulkUpdateBuckets(updates: { id: string; changes: Partial<Bucket> }[]): Promise<void> {
+    await this.transaction('rw', this.buckets, async () => {
+      for (const u of updates) {
+        await this.buckets.update(u.id, u.changes)
+      }
+    })
   }
 
   async deleteBucket(bucketId: string): Promise<void> {

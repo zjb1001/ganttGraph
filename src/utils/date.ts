@@ -16,6 +16,27 @@ export function formatDateTime(date: Date): string {
   return `${dateStr} ${hours}:${minutes}`
 }
 
+/**
+ * 按本地日历日计算天数差，忽略时分秒与夏令时。
+ * 甘特图定位必须用它：'YYYY-MM-DD' 被 new Date() 按 UTC 解析后在东八区是 08:00，
+ * 用 getDaysBetween 的 Math.ceil 会把任务条整体右移一天。
+ */
+export function calendarDaysBetween(start: Date, end: Date): number {
+  const s = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate())
+  const e = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate())
+  return Math.round((e - s) / 86400000)
+}
+
+/**
+ * 解析日期字符串：纯 'YYYY-MM-DD' 按本地零点解析（避免 UTC 偏移导致跨日），
+ * 其他格式交给 Date 原生解析。
+ */
+export function parseLocalDate(str: string): Date {
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(str.trim())
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  return new Date(str)
+}
+
 export function getDaysBetween(start: Date, end: Date): number {
   const diff = end.getTime() - start.getTime()
   return Math.ceil(diff / (1000 * 60 * 60 * 24))
