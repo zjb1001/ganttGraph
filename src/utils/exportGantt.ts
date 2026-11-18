@@ -1,65 +1,63 @@
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 
+// 浏览器 canvas 限制：单边 ≤ 32767px（Chrome），总面积约 268MP；留余量
+const MAX_CANVAS_SIDE = 16384
+const MAX_CANVAS_AREA = 120_000_000
+// PDF 规范（Acrobat）单页最大 200 英寸 ≈ 5080mm
+const MAX_PDF_SIDE_MM = 5080
+
 /**
- * 导出甘特图为图片
+ * 截取滚动容器的完整内容（不受当前视口和滚动位置限制）。
+ * 在 html2canvas 的克隆文档里把容器展开为 scrollWidth × scrollHeight，
+ * 吸顶表头 / 冻结列在克隆里回到自然位置，因此整张图从左上角完整排布。
+ */
+async function captureFullContent(element: HTMLElement, preferredScale: number) {
+  const fullW = element.scrollWidth
+  const fullH = element.scrollHeight
+  const scale = Math.max(
+    0.5,
+    Math.min(preferredScale, MAX_CANVAS_SIDE / fullW, MAX_CANVAS_SIDE / fullH, Math.sqrt(MAX_CANVAS_AREA / (fullW * fullH)))
+  )
+  const canvas = await html2canvas(element, {
+    backgroundColor: '#ffffff',
+    scale,
+    logging: false,
+    useCORS: true,
+    allowTaint: true,
+    windowWidth: Math.max(document.documentElement.clientWidth, fullW),
+    windowHeight: Math.max(document.documentElement.clientHeight, fullH),
+    scrollX: 0,
+    scrollY: 0,
+    onclone: (_doc, cloned) => {
+      cloned.style.overflow = 'visible'
+      cloned.style.flex = 'none'
+      cloned.style.width = `${fullW}px`
+      cloned.style.height = `${fullH}px`
+      cloned.style.maxWidth = 'none'
+      cloned.style.maxHeight = 'none'
+      cloned.scrollTop = 0
+      cloned.scrollLeft = 0
+    },
+  })
+  return { canvas, fullW, fullH }
+}
+
+/**
+ * 导出甘特图为图片：包含全部行和完整时间轴（不再只截当前可视区域）
  * @param element   - 要导出的 DOM 元素（滚动容器）
  * @param filename  - 导出的文件名（不带扩展名）
  * @param format    - 图片格式
- * @param frozenWidth - 左侧冻结列宽度（px），用于拼接导出内容
  */
 export async function exportAsImage(
   element: HTMLElement,
   filename: string = 'gantt-chart',
-  format: 'png' | 'jpeg' = 'png',
-  frozenWidth: number = 0
+  format: 'png' | 'jpeg' = 'png'
 ): Promise<void> {
   try {
     showLoadingToast('正在生成图片...')
 
-    const scale       = 3
-    const scrollLeft  = element.scrollLeft
-    const scrollTop   = element.scrollTop
-    const clientW     = element.clientWidth
-    const clientH     = element.clientHeight
-    const timelineVisW = clientW - frozenWidth
-
-    // 截取全宽内容（x=0）且高度限制在当前可视区域
-    const fullCanvas = await html2canvas(element, {
-      backgroundColor: '#ffffff',
-      scale,
-      logging: false,
-      useCORS: true,
-      allowTaint: true,
-      x: 0,
-      y: scrollTop,
-      width: element.scrollWidth,
-      height: clientH,
-      windowWidth:  element.scrollWidth,
-      windowHeight: element.scrollHeight,
-      scrollX: 0,
-      scrollY: 0
-    })
-
-    // 手动合成：冻结列 + 当前可视时间轴区域
-    const outCanvas = document.createElement('canvas')
-    outCanvas.width  = clientW * scale
-    outCanvas.height = clientH * scale
-    const ctx = outCanvas.getContext('2d')!
-
-    // 左侧冻结列（始终在 x=0）
-    ctx.drawImage(
-      fullCanvas,
-      0, 0, frozenWidth * scale, clientH * scale,
-      0, 0, frozenWidth * scale, clientH * scale
-    )
-
-    // 当前可视时间轴：canvas 中时间轴起始位置 = frozenWidth + scrollLeft
-    ctx.drawImage(
-      fullCanvas,
-      (frozenWidth + scrollLeft) * scale, 0, timelineVisW * scale, clientH * scale,
-      frozenWidth * scale,                0, timelineVisW * scale, clientH * scale
-    )
+    const { canvas: outCanvas } = await captureFullContent(element, 3)
 
     outCanvas.toBlob((blob) => {
       if (blob) {
@@ -84,74 +82,36 @@ export async function exportAsImage(
 }
 
 /**
- * 导出甘特图为 PDF（自定义页面尺寸，匹配屏幕当前可视内容）
+ * 导出甘特图为 PDF：包含全部行和完整时间轴（不再只截当前可视区域），
+ * 单页自定义尺寸，超过 PDF 单页上限时等比缩小页面。
  * @param element     - 要导出的 DOM 元素（滚动容器）
  * @param filename    - 导出的文件名（不带扩展名）
- * @param frozenWidth - 左侧冻结列宽度（px）
  */
 export async function exportAsPDF(
   element: HTMLElement,
-  filename: string = 'gantt-chart',
-  frozenWidth: number = 0
+  filename: string = 'gantt-chart'
 ): Promise<void> {
   try {
     showLoadingToast('正在生成 PDF...')
 
-    const scale        = 2
-    const scrollLeft   = element.scrollLeft
-    const scrollTop    = element.scrollTop
-    const clientW      = element.clientWidth
-    const clientH      = element.clientHeight
-    const timelineVisW = clientW - frozenWidth
-    const pxToMm       = 0.264583 // 96 dpi: 1px = 0.264583mm
+    const pxToMm = 0.264583 // 96 dpi: 1px = 0.264583mm
+    const { canvas, fullW, fullH } = await captureFullContent(element, 2)
 
-    // 截取全宽内容（x=0）且高度限制在当前可视区域
-    const fullCanvas = await html2canvas(element, {
-      backgroundColor: '#ffffff',
-      scale,
-      logging: false,
-      useCORS: true,
-      allowTaint: true,
-      x: 0,
-      y: scrollTop,
-      width: element.scrollWidth,
-      height: clientH,
-      windowWidth:  element.scrollWidth,
-      windowHeight: element.scrollHeight,
-      scrollX: 0,
-      scrollY: 0
-    })
-
-    // 手动合成：冻结列 + 当前可视时间轴区域
-    const outCanvas = document.createElement('canvas')
-    outCanvas.width  = clientW * scale
-    outCanvas.height = clientH * scale
-    const ctx = outCanvas.getContext('2d')!
-
-    ctx.drawImage(
-      fullCanvas,
-      0, 0, frozenWidth * scale, clientH * scale,
-      0, 0, frozenWidth * scale, clientH * scale
-    )
-    ctx.drawImage(
-      fullCanvas,
-      (frozenWidth + scrollLeft) * scale, 0, timelineVisW * scale, clientH * scale,
-      frozenWidth * scale,                0, timelineVisW * scale, clientH * scale
-    )
-
-    const imgData      = outCanvas.toDataURL('image/png', 1.0)
-    const pageWidthMm  = clientW * pxToMm
-    const pageHeightMm = clientH * pxToMm
+    let pageWidthMm  = fullW * pxToMm
+    let pageHeightMm = fullH * pxToMm
+    const fit = Math.min(1, MAX_PDF_SIDE_MM / pageWidthMm, MAX_PDF_SIDE_MM / pageHeightMm)
+    pageWidthMm  *= fit
+    pageHeightMm *= fit
     const orientation: 'landscape' | 'portrait' = pageWidthMm >= pageHeightMm ? 'landscape' : 'portrait'
 
     const pdf = new jsPDF({
       orientation,
       unit: 'mm',
       format: [pageWidthMm, pageHeightMm],
-      compress: false
+      compress: true
     })
 
-    pdf.addImage(imgData, 'PNG', 0, 0, pageWidthMm, pageHeightMm, undefined, 'FAST')
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pageWidthMm, pageHeightMm, undefined, 'FAST')
     pdf.setProperties({ title: filename, subject: '甘特图', creator: 'Gantt Graph', keywords: '甘特图,项目,任务' })
     pdf.save(`${filename}.pdf`)
 

@@ -1320,13 +1320,13 @@ export default function GanttView() {
   const handleExportAsPNG = async () => {
     if (!ganttScrollRef.current) return
     const { exportAsImage } = await import('@/utils/exportGantt')
-    await exportAsImage(ganttScrollRef.current, `${sanitizedProjectName}_gantt`, 'png', TASK_LIST_WIDTH)
+    await exportAsImage(ganttScrollRef.current, `${sanitizedProjectName}_gantt`, 'png')
   }
 
   const handleExportAsJPEG = async () => {
     if (!ganttScrollRef.current) return
     const { exportAsImage } = await import('@/utils/exportGantt')
-    await exportAsImage(ganttScrollRef.current, `${sanitizedProjectName}_gantt`, 'jpeg', TASK_LIST_WIDTH)
+    await exportAsImage(ganttScrollRef.current, `${sanitizedProjectName}_gantt`, 'jpeg')
   }
 
   // Excel 导出（懒加载 exceljs）：导出当前时间轴范围内的全部分组与任务（不受界面折叠影响）
@@ -1358,7 +1358,7 @@ export default function GanttView() {
   const handleExportAsPDF = async () => {
     if (!ganttScrollRef.current) return
     const { exportAsPDF } = await import('@/utils/exportGantt')
-    await exportAsPDF(ganttScrollRef.current, `${sanitizedProjectName}_gantt`, TASK_LIST_WIDTH)
+    await exportAsPDF(ganttScrollRef.current, `${sanitizedProjectName}_gantt`)
   }
 
   const markerLabelMaxOffset = Math.max(0, rowItems.length * ROW_HEIGHT - 18)
