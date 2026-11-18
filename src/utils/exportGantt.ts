@@ -7,6 +7,12 @@ const MAX_CANVAS_AREA = 120_000_000
 // PDF 规范（Acrobat）单页最大 200 英寸 ≈ 5080mm
 const MAX_PDF_SIDE_MM = 5080
 
+/** 生成本地时间后缀：_YYYYMMDD_HHmmss，用于区分多次导出的文件 */
+function timestampSuffix(d: Date = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+}
+
 /**
  * 截取滚动容器的完整内容（不受当前视口和滚动位置限制）。
  * 在 html2canvas 的克隆文档里把容器展开为 scrollWidth × scrollHeight，
@@ -63,7 +69,7 @@ export async function exportAsImage(
       if (blob) {
         const url = URL.createObjectURL(blob)
         const link = document.createElement('a')
-        link.download = `${filename}.${format}`
+        link.download = `${filename}${timestampSuffix()}.${format}`
         link.href = url
         link.click()
         URL.revokeObjectURL(url)
@@ -113,7 +119,7 @@ export async function exportAsPDF(
 
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pageWidthMm, pageHeightMm, undefined, 'FAST')
     pdf.setProperties({ title: filename, subject: '甘特图', creator: 'Gantt Graph', keywords: '甘特图,项目,任务' })
-    pdf.save(`${filename}.pdf`)
+    pdf.save(`${filename}${timestampSuffix()}.pdf`)
 
     hideLoadingToast()
     showSuccessToast('PDF 导出成功！')
@@ -152,7 +158,7 @@ export async function exportAsHighQualityImage(
       if (blob) {
         const url = URL.createObjectURL(blob)
         const link = document.createElement('a')
-        link.download = `${filename}_hd.png`
+        link.download = `${filename}_hd${timestampSuffix()}.png`
         link.href = url
         link.click()
         URL.revokeObjectURL(url)
