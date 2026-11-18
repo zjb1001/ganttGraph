@@ -28,12 +28,12 @@ interface DateInfo {
 }
 
 
-/** 里程碑短日期（如 "Mar 15"），左侧列表与时间轴标签共用 */
+/** 短日期（如 "Mar 15"），里程碑列表/标签与 marker 标签共用 */
 const formatMilestoneDate = (d: string | Date) =>
   new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
 export default function GanttView() {
-  const { tasks, buckets, currentProjectId, setSelectedTaskId, addDependency, removeDependency, updateTask, addTask, deleteTask, addBucket, updateBucket, deleteBucket, projects, updateProject, collapsedBucketIds: collapsedBuckets, toggleBucketCollapse, collapseBucketsByType, verticalMarkers, addMarker, deleteMarker, bulkUpdateTasks, bulkUpdateBuckets } = useAppStore()
+  const { tasks, buckets, currentProjectId, setSelectedTaskId, addDependency, removeDependency, updateTask, addTask, deleteTask, addBucket, updateBucket, deleteBucket, projects, updateProject, collapsedBucketIds: collapsedBuckets, toggleBucketCollapse, collapseBucketsByType, verticalMarkers, addMarker, updateMarker, deleteMarker, bulkUpdateTasks, bulkUpdateBuckets } = useAppStore()
   
   const ganttRef = useRef<HTMLDivElement>(null)
   const ganttScrollRef = useRef<HTMLDivElement>(null)
@@ -100,6 +100,8 @@ export default function GanttView() {
   const [newMarkerDate, setNewMarkerDate] = useState('')
   const [newMarkerLabel, setNewMarkerLabel] = useState('')
   const [newMarkerColor, setNewMarkerColor] = useState('#dc2626')
+  // marker 标签纵向拖动：拖动中只改本地偏移，松手后写入数据库
+  const [markerLabelDrag, setMarkerLabelDrag] = useState<{ id: string; startY: number; startOffset: number; offset: number } | null>(null)
   const [newMarkerThickness, setNewMarkerThickness] = useState(2)
   // Column resize (task name vs progress)
   const [taskListWidth, setTaskListWidth] = useState(360)
@@ -1359,6 +1361,27 @@ export default function GanttView() {
     await exportAsPDF(ganttScrollRef.current, `${sanitizedProjectName}_gantt`, TASK_LIST_WIDTH)
   }
 
+  const markerLabelMaxOffset = Math.max(0, rowItems.length * ROW_HEIGHT - 18)
+
+  useEffect(() => {
+    if (!markerLabelDrag) return
+    const onMove = (e: MouseEvent) => {
+      const next = Math.round(Math.max(0, Math.min(markerLabelMaxOffset, markerLabelDrag.startOffset + e.clientY - markerLabelDrag.startY)))
+      setMarkerLabelDrag((d) => (d ? { ...d, offset: next } : d))
+    }
+    const onUp = () => {
+      const { id, offset, startOffset } = markerLabelDrag
+      setMarkerLabelDrag(null)
+      if (offset !== startOffset) updateMarker(id, { labelOffsetY: offset })
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [markerLabelDrag, markerLabelMaxOffset, updateMarker])
+
   return (
     <>
       <div className={`${styles.ganttView} ${resizePreview ? (resizePreview.mode === 'move' ? styles.ganttMoving : styles.ganttResizing) : ''} ${isRowDragging ? styles.ganttRowDragging : ''}`} ref={ganttRef} style={{ '--task-list-width': `${TASK_LIST_WIDTH}px` } as React.CSSProperties}>
@@ -1455,13 +1478,32 @@ export default function GanttView() {
                   className={styles.verticalMarker}
                   style={{ left: `${left}px`, '--marker-color': marker.color, '--marker-thickness': `${marker.thickness || 2}px` } as React.CSSProperties}
                 >
-                  <span className={styles.verticalMarkerLabel} style={{ background: marker.color }}>
-                    {marker.label}
-                    <button
-                      className={styles.verticalMarkerRemove}
-                      onClick={() => deleteMarker(marker.id)}
-                    >×</button>
-                  </span>
+                  {(() => {
+                    const dragging = markerLabelDrag?.id === marker.id
+                    const offset = dragging ? markerLabelDrag.offset : Math.min(marker.labelOffsetY ?? 4, markerLabelMaxOffset)
+                    return (
+                      <span
+                        className={`${styles.verticalMarkerLabel} ${dragging ? styles.verticalMarkerLabelDragging : ''}`}
+                        style={{ top: `${HEADER_HEIGHT + offset}px`, background: marker.color }}
+                        title="Drag up/down to reposition"
+                        onMouseDown={(e) => {
+                          if (e.button !== 0) return
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setMarkerLabelDrag({ id: marker.id, startY: e.clientY, startOffset: offset, offset })
+                        }}
+                      >
+                        {marker.label}
+                        <span className={styles.verticalMarkerDate}>{formatMilestoneDate(markerDate)}</span>
+                        <button
+                          className={styles.verticalMarkerRemove}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={() => deleteMarker(marker.id)}
+                          title="Remove marker"
+                        >×</button>
+                      </span>
+                    )
+                  })()}
                 </div>
               )
             })}

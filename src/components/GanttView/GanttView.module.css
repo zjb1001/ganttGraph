@@ -1580,9 +1580,9 @@
 
 .verticalMarkerLabel {
   position: absolute;
-  top: 2px;
   left: 50%;
   transform: translateX(-50%);
+  line-height: 14px;
   font-size: 9px;
   font-weight: 700;
   color: #fff;
@@ -1592,7 +1592,13 @@
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
   letter-spacing: 0.3px;
   pointer-events: auto;
-  cursor: default;
+  cursor: ns-resize;
+  user-select: none;
+}
+
+.verticalMarkerLabelDragging {
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+  z-index: 1;
 }
 
 .verticalMarkerRemove {
@@ -1616,6 +1622,22 @@
   border-radius: 50%;
   opacity: 0;
   transition: opacity 0.15s;
+}
+
+/* marker 标签内的日期：白底小框 + marker 色文字，任意底色都清晰，且与粗体名称明确分开 */
+.verticalMarkerDate {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--marker-color, #dc2626);
+  font-size: 8.5px;
+  font-weight: 600;
+  line-height: 12px;
+  letter-spacing: 0;
+  vertical-align: 1px;
+  font-variant-numeric: tabular-nums;
 }
 
 .verticalMarkerLabel:hover .verticalMarkerRemove {

@@ -65,6 +65,8 @@ export interface VerticalMarker {
   label: string
   color: string
   thickness: number
+  /** 标签距数据区顶部的纵向偏移（px），用户拖动后保存；缺省时贴近顶部 */
+  labelOffsetY?: number
 }
 
 // 项目/工作空间
