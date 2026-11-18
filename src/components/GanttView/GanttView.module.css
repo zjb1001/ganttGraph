@@ -490,7 +490,7 @@
 .timelineGroupLabel {
   font-size: 11px;
   font-weight: 600;
-  color: var(--group-ink, var(--color-text-secondary));
+  color: var(--color-text);
   padding: 1px 8px;
   border-left: 3px solid var(--group-color, var(--color-border));
   margin-left: 8px;
@@ -635,11 +635,11 @@
   margin-left: 4px;
   font-size: max(10px, calc(var(--ms-font-size, 12px) - 2px));
   font-weight: var(--ms-font-weight, 500);
-  color: var(--group-ink);
+  color: var(--color-text);
   white-space: nowrap;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: flex;
+  align-items: baseline;
+  max-width: 220px;
   background: rgba(255, 255, 255, 0.94);
   padding: 1px 5px;
   border-radius: 3px;
@@ -666,7 +666,7 @@
   width: 64px;
   flex-shrink: 0;
   font-size: 11px;
-  color: var(--group-ink);
+  color: var(--color-text-secondary);
   font-weight: 500;
   text-align: right;
   white-space: nowrap;
@@ -748,10 +748,10 @@
 }
 
 /* 左侧列表的里程碑名称：跟随分组字号（上限 15px 以免撑破行高） */
-/* 左侧列表的里程碑名称：比任务(11px)略大一号，常规字重，用分组墨水色而非加粗来区分。
+/* 左侧列表的里程碑名称：比任务(11px)略大一号，常规字重；文字统一中性色，分组颜色只体现在色块上。
    分组的字号/加粗设置只作用于时间轴标签，不影响左侧列表，保证列表整齐。 */
 .milestoneNameText {
-  color: var(--group-ink, var(--color-text));
+  color: var(--color-text);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.1px;
@@ -1064,6 +1064,23 @@
   flex-shrink: 0;
 }
 
+/* 折叠标签：名称过长时只截断名称，日期始终完整显示 */
+.milestoneLabelTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 标签内的日期：小一号、常规字重、浅灰，辅助信息不抢名称 */
+.milestoneLabelDate {
+  flex-shrink: 0;
+  margin-left: 6px;
+  font-size: max(9px, calc(var(--ms-font-size, 12px) - 2px));
+  font-weight: 400;
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
 .milestoneLabel {
   position: absolute;
   left: 20px;
@@ -1072,7 +1089,7 @@
   font-size: var(--ms-font-size, 12px);
   font-weight: var(--ms-font-weight, 500);
   line-height: 1.3;
-  color: var(--group-ink, var(--color-text));
+  color: var(--color-text);
   white-space: nowrap;
   background: var(--color-surface);
   padding: 1px 6px;

@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } fr
 import { useAppStore } from '@/store/appStore'
 import {
   PRIORITY_COLORS, GANTT_COLORS, DEFAULT_MILESTONE_COLOR, MILESTONE_FONT_DEFAULT,
-  resolveColor, inkColor, tint, getContrastColor, nextPaletteColor,
+  resolveColor, tint, getContrastColor, nextPaletteColor,
 } from '@/utils/colors'
 import { calendarDaysBetween as getDaysBetween, isToday, parseLocalDate } from '@/utils/date'
 import { planTaskMove, planBucketReorder, dropTargetFromTaskRow, sortTasksInBucket, TaskDropTarget } from '@/utils/ganttDnd'
@@ -26,6 +26,11 @@ interface DateInfo {
   isWeekStart: boolean
   isMonthStart: boolean
 }
+
+
+/** 里程碑短日期（如 "Mar 15"），左侧列表与时间轴标签共用 */
+const formatMilestoneDate = (d: string | Date) =>
+  new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
 export default function GanttView() {
   const { tasks, buckets, currentProjectId, setSelectedTaskId, addDependency, removeDependency, updateTask, addTask, deleteTask, addBucket, updateBucket, deleteBucket, projects, updateProject, collapsedBucketIds: collapsedBuckets, toggleBucketCollapse, collapseBucketsByType, verticalMarkers, addMarker, deleteMarker, bulkUpdateTasks, bulkUpdateBuckets } = useAppStore()
@@ -301,7 +306,6 @@ export default function GanttView() {
       const color = resolveColor(b.color, isMs ? DEFAULT_MILESTONE_COLOR : '#64748b')
       map.set(b.id, {
         '--group-color': color,
-        '--group-ink': inkColor(color),
         '--group-wash': tint(color, 0.03),
         '--group-tint': tint(color, 0.07),
         '--group-tint-strong': tint(color, 0.12),
@@ -1561,7 +1565,10 @@ export default function GanttView() {
                         }}
                       >
                         <div className={styles.milestoneDiamond} style={{ backgroundColor: bucketColor }} />
-                        <span className={styles.collapsedMilestoneLabel}>{ms.title}</span>
+                        <span className={styles.collapsedMilestoneLabel}>
+                          <span className={styles.milestoneLabelTitle}>{ms.title}</span>
+                          <span className={styles.milestoneLabelDate}>{formatMilestoneDate(ms.startDateTime)}</span>
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -1630,7 +1637,7 @@ export default function GanttView() {
                           onClick={(e) => handleMilestoneDateClick(e, row.task)}
                           title="Click to edit date"
                         >
-                          {new Date(row.task.startDateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {formatMilestoneDate(row.task.startDateTime)}
                         </span>
                       )}
                     </div>
@@ -1656,7 +1663,10 @@ export default function GanttView() {
                           autoFocus
                         />
                       ) : (
-                        <span className={styles.milestoneLabel}>{row.task.title}</span>
+                        <span className={styles.milestoneLabel}>
+                          {row.task.title}
+                          <span className={styles.milestoneLabelDate}>{formatMilestoneDate(msDate)}</span>
+                        </span>
                       )}
                     </div>
                     {/* 里程碑垂直参考线 */}

@@ -6,7 +6,6 @@ import {
   MILESTONE_FONT_MAX,
   MILESTONE_FONT_DEFAULT,
   resolveColor,
-  inkColor,
 } from '@/utils/colors'
 import styles from './GroupStylePopover.module.css'
 
@@ -220,9 +219,15 @@ function GroupStylePanel({ anchor, value, onChange, showFontControls, previewTex
             <span className={styles.previewDiamond} style={{ background: color }} />
             <span
               className={styles.previewLabel}
-              style={{ fontSize, fontWeight: bold ? 700 : 500, color: inkColor(color), borderLeftColor: color }}
+              style={{ fontSize, fontWeight: bold ? 700 : 500, color: "var(--color-text)", borderLeftColor: color }}
             >
               {previewText || 'Milestone'}
+              <span
+                className={styles.previewDate}
+                style={{ fontSize: Math.max(9, fontSize - 2) }}
+              >
+                {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
             </span>
           </div>
         </>

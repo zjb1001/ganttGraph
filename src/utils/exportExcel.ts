@@ -356,7 +356,7 @@ export function buildGanttWorkbook(input: GanttExportInput): ExcelJS.Workbook {
       r.getCell(3).numFmt = 'yyyy-mm-dd'
       r.getCell(4).numFmt = 'yyyy-mm-dd'
       r.getCell(6).numFmt = '0%'
-      if (isMilestone) r.getCell(2).font = { name: FONT, size: 9, bold: true, color: { argb: argb(gColor) } }
+      if (isMilestone) r.getCell(2).font = { name: FONT, size: 9, bold: true, color: { argb: C.text } }
       if (t.status === 'Completed') r.getCell(7).font = { name: FONT, size: 9, color: { argb: 'FF15803D' } }
       INFO_COLS.forEach((_, i) => { if (i === INFO_COLS.length - 1) r.getCell(i + 1).border = { bottom: thin(), right: thin(C.borderStrong) } })
 
