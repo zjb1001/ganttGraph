@@ -28,8 +28,8 @@ interface DateInfo {
 }
 
 
-/** 短日期（如 "Mar 15"），里程碑列表/标签与 marker 标签共用 */
-const formatMilestoneDate = (d: string | Date) =>
+/** 短日期（如 "Mar 15"），里程碑、任务条与 marker 标签共用 */
+const formatShortDate = (d: string | Date) =>
   new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
 export default function GanttView() {
@@ -1494,7 +1494,7 @@ export default function GanttView() {
                         }}
                       >
                         {marker.label}
-                        <span className={styles.verticalMarkerDate}>{formatMilestoneDate(markerDate)}</span>
+                        <span className={styles.verticalMarkerDate}>{formatShortDate(markerDate)}</span>
                         <button
                           className={styles.verticalMarkerRemove}
                           onMouseDown={(e) => e.stopPropagation()}
@@ -1609,7 +1609,7 @@ export default function GanttView() {
                         <div className={styles.milestoneDiamond} style={{ backgroundColor: bucketColor }} />
                         <span className={styles.collapsedMilestoneLabel}>
                           <span className={styles.milestoneLabelTitle}>{ms.title}</span>
-                          <span className={styles.milestoneLabelDate}>{formatMilestoneDate(ms.startDateTime)}</span>
+                          <span className={styles.milestoneLabelDate}>{formatShortDate(ms.startDateTime)}</span>
                         </span>
                       </div>
                     ))}
@@ -1679,7 +1679,7 @@ export default function GanttView() {
                           onClick={(e) => handleMilestoneDateClick(e, row.task)}
                           title="Click to edit date"
                         >
-                          {formatMilestoneDate(row.task.startDateTime)}
+                          {formatShortDate(row.task.startDateTime)}
                         </span>
                       )}
                     </div>
@@ -1707,7 +1707,7 @@ export default function GanttView() {
                       ) : (
                         <span className={styles.milestoneLabel}>
                           {row.task.title}
-                          <span className={styles.milestoneLabelDate}>{formatMilestoneDate(msDate)}</span>
+                          <span className={styles.milestoneLabelDate}>{formatShortDate(msDate)}</span>
                         </span>
                       )}
                     </div>
@@ -2031,6 +2031,8 @@ export default function GanttView() {
                         title="Drag to adjust start date"
                       />
                       <span className={styles.taskBarLabel}>{row.task.title}</span>
+                      {/* 日期追加在任务条右端外侧（同里程碑），短任务也能完整显示 */}
+                      <span className={styles.taskBarDate}>{formatShortDate(dispStart)} – {formatShortDate(dispEnd)}</span>
                       {row.task.deadlineConstraint && (() => {
                         const refTask = tasks.find((t) => t.id === row.task.deadlineConstraint!.refTaskId)
                         if (!refTask) return null
